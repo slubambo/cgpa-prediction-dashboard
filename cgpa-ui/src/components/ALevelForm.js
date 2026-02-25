@@ -331,10 +331,10 @@ export default function ALevelForm({ data, onChange, touched = {} }) {
           size="small"
           sx={{ flexWrap: "wrap", gap: 1 }}
         >
-          <ToggleButton value={GRADING.LEGACY_25}>Legacy (25 pts)</ToggleButton>
           <ToggleButton value={GRADING.CLASSIC_18}>
             Classic (18 pts)
           </ToggleButton>
+          <ToggleButton value={GRADING.LEGACY_25}>Legacy (25 pts)</ToggleButton>
           <ToggleButton value={GRADING.COMPETENCY_60}>
             Competency (≈60 pts)
           </ToggleButton>

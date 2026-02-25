@@ -32,6 +32,8 @@ import NavigateNextIcon from "@mui/icons-material/NavigateNext";
 import NavigateBeforeIcon from "@mui/icons-material/NavigateBefore";
 import SendIcon from "@mui/icons-material/Send";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { createAppTheme } from "./styles/theme";
 
 import SectionCard from "./components/SectionCard";
@@ -87,6 +89,30 @@ const STEP_REQUIRED_FIELDS = {
   2: ["uace_year_code", "general_paper"],
   3: ["campus_id_code", "level", "program_id_code", "is_national"],
 };
+
+const FRIENDLY_VALUES = {
+  gender: (v) => (v === 1 ? "Male" : v === 0 ? "Female" : "—"),
+  marital_status: (v) => (v === 0 ? "Single" : v === 1 ? "Married" : v === 2 ? "Other" : "—"),
+  general_paper: (v) => (Number(v) === 1 ? "Passed" : "Not passed"),
+  is_national: (v) => (Number(v) === 1 ? "National" : "International"),
+  level: (v) => {
+    const labels = { 1: "Certificate/Diploma", 2: "Bachelor's", 3: "Master's", 4: "PhD", 5: "Short Courses", 6: "PG Diploma", 7: "Bridging Year", 8: "Unknown" };
+    return labels[Number(v) + 1] || `Level ${Number(v) + 1}`;
+  },
+};
+
+const formatFieldValue = (key, val) => {
+  if (val === "" || val === null || typeof val === "undefined") return "—";
+  if (FRIENDLY_VALUES[key]) return FRIENDLY_VALUES[key](val);
+  return String(val);
+};
+
+const REVIEW_SECTIONS = [
+  { title: "Demographics", fields: ["marital_status", "gender", "age_at_entry", "year_of_entry_code"] },
+  { title: "O-Level", fields: ["uce_year_code", "olevel_subjects", "uce_distinctions", "uce_credits", "average_olevel_grade", "count_weak_grades_olevel"] },
+  { title: "A-Level", fields: ["uace_year_code", "general_paper", "alevel_average_grade_weight", "alevel_count_weak_grades"] },
+  { title: "Institutional", fields: ["campus_id_code", "level", "program_id_code", "is_national"] },
+];
 
 const castFormData = (source) => {
   const n = (v) => (v === "" || v === null ? NaN : Number(v));
@@ -608,147 +634,243 @@ function App() {
             )}
 
             {activeStep === 0 && (
-              <SectionCard
-                title="Demographic Details"
-                subtitle="Basic student information"
-              >
-                <DemographicsForm
-                  data={formData}
-                  onChange={handleFormChange}
-                  touched={touched}
-                />
-              </SectionCard>
+              <Fade in timeout={300} key="step-0">
+                <div>
+                  <SectionCard
+                    title="Demographic Details"
+                    subtitle="Basic student information"
+                  >
+                    <DemographicsForm
+                      data={formData}
+                      onChange={handleFormChange}
+                      touched={touched}
+                    />
+                  </SectionCard>
+                </div>
+              </Fade>
             )}
 
             {activeStep === 1 && (
-              <SectionCard
-                title="O-Level Academic Details"
-                subtitle="UCE performance summary"
-              >
-                <OLevelForm
-                  data={formData}
-                  onChange={handleFormChange}
-                  touched={touched}
-                />
-              </SectionCard>
+              <Fade in timeout={300} key="step-1">
+                <div>
+                  <SectionCard
+                    title="O-Level Academic Details"
+                    subtitle="UCE performance summary"
+                  >
+                    <OLevelForm
+                      data={formData}
+                      onChange={handleFormChange}
+                      touched={touched}
+                    />
+                  </SectionCard>
+                </div>
+              </Fade>
             )}
 
             {activeStep === 2 && (
-              <SectionCard
-                title="A-Level (UACE) Information"
-                subtitle="UACE performance summary"
-              >
-                <ALevelForm
-                  data={formData}
-                  onChange={handleFormChange}
-                  touched={touched}
-                />
-              </SectionCard>
+              <Fade in timeout={300} key="step-2">
+                <div>
+                  <SectionCard
+                    title="A-Level (UACE) Information"
+                    subtitle="UACE performance summary"
+                  >
+                    <ALevelForm
+                      data={formData}
+                      onChange={handleFormChange}
+                      touched={touched}
+                    />
+                  </SectionCard>
+                </div>
+              </Fade>
             )}
 
             {activeStep === 3 && (
-              <SectionCard
-                title="Institutional Placement"
-                subtitle="Details about your campus and program"
-              >
-                <InstitutionalForm
-                  data={formData}
-                  onChange={handleFormChange}
-                  touched={touched}
-                />
-              </SectionCard>
+              <Fade in timeout={300} key="step-3">
+                <div>
+                  <SectionCard
+                    title="Institutional Placement"
+                    subtitle="Details about your campus and program"
+                  >
+                    <InstitutionalForm
+                      data={formData}
+                      onChange={handleFormChange}
+                      touched={touched}
+                    />
+                  </SectionCard>
+                </div>
+              </Fade>
             )}
 
             {activeStep === 4 && (
-              <SectionCard
-                title="Review & Submit"
-                subtitle="Confirm all details are correct"
-                actions={
-                  result ? (
-                    <>
-                      <Button
-                        variant="outlined"
-                        onClick={handleBack}
-                        startIcon={<NavigateBeforeIcon />}
-                        sx={{ mr: 1 }}
-                      >
-                        Back
-                      </Button>
-                      <Button
-                        variant="contained"
-                        color="primary"
-                        onClick={handleReset}
-                        startIcon={<RestartAltIcon />}
-                      >
-                        Start New Prediction
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <Button
-                        variant="outlined"
-                        onClick={handleBack}
-                        startIcon={<NavigateBeforeIcon />}
-                        sx={{ mr: 1 }}
-                      >
-                        Back
-                      </Button>
-                      <Button
-                        variant="contained"
-                        color="primary"
-                        onClick={handleSubmit}
-                        disabled={loading}
-                        startIcon={
-                          loading ? (
-                            <CircularProgress size={18} color="inherit" />
-                          ) : (
-                            <SendIcon />
-                          )
-                        }
-                      >
-                        {loading ? "Predicting..." : "Predict CGPA"}
-                      </Button>
-                    </>
-                  )
-                }
-              >
-                {result && (
-                  <Alert
-                    severity="success"
-                    sx={{
-                      mt: 2,
-                      "& .MuiAlert-message": { width: "100%" },
-                    }}
+              <Fade in timeout={300} key="step-4">
+                <div>
+                  <SectionCard
+                    title="Review & Submit"
+                    subtitle="Confirm all details are correct"
+                    actions={
+                      result ? (
+                        <>
+                          <Button
+                            variant="outlined"
+                            onClick={handleBack}
+                            startIcon={<NavigateBeforeIcon />}
+                            sx={{ mr: 1 }}
+                          >
+                            Institutional
+                          </Button>
+                          <Button
+                            variant="contained"
+                            color="primary"
+                            onClick={handleReset}
+                            startIcon={<RestartAltIcon />}
+                          >
+                            Start New Prediction
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            variant="outlined"
+                            onClick={handleBack}
+                            startIcon={<NavigateBeforeIcon />}
+                            sx={{ mr: 1 }}
+                          >
+                            Institutional
+                          </Button>
+                          <Button
+                            variant="contained"
+                            color="primary"
+                            onClick={handleSubmit}
+                            disabled={loading}
+                            startIcon={
+                              loading ? (
+                                <CircularProgress size={18} color="inherit" />
+                              ) : (
+                                <SendIcon />
+                              )
+                            }
+                          >
+                            {loading ? "Predicting..." : "Predict CGPA"}
+                          </Button>
+                        </>
+                      )
+                    }
                   >
-                    <strong>Predicted CGPA:</strong>{" "}
-                    {Number(result.predicted_cgpa).toFixed(2)}
-                    <br />
-                    <strong>Performance Band:</strong>{" "}
-                    {result.performance_band}
-                  </Alert>
-                )}
+                    {/* Pre-submission summary */}
+                    {!result && (
+                      <Box sx={{ mb: 2 }}>
+                        {missingFields.length === 0 ? (
+                          <Alert
+                            severity="success"
+                            icon={<CheckCircleOutlineIcon />}
+                            sx={{ mb: 2 }}
+                          >
+                            All fields are complete. Review your details below and click{" "}
+                            <strong>Predict CGPA</strong> when ready.
+                          </Alert>
+                        ) : (
+                          <Alert
+                            severity="warning"
+                            icon={<WarningAmberIcon />}
+                            sx={{ mb: 2 }}
+                          >
+                            {missingFields.length} field{missingFields.length > 1 ? "s" : ""} still
+                            missing: {missingFieldLabels.slice(0, 5).join(", ")}
+                            {missingFields.length > 5 ? " and more..." : "."}
+                          </Alert>
+                        )}
 
-                {result && (
-                  <Box sx={{ mt: 2 }}>
-                    <ResultPanel
-                      result={result}
-                      payload={castPayload}
-                      onOpenResearchReference={() => setResearchDialogOpen(true)}
-                    />
-                  </Box>
-                )}
+                        <Grid container spacing={2}>
+                          {REVIEW_SECTIONS.map((section) => (
+                            <Grid item xs={12} sm={6} key={section.title}>
+                              <Paper
+                                variant="outlined"
+                                sx={{
+                                  p: 2,
+                                  borderRadius: 1.5,
+                                  height: "100%",
+                                  bgcolor: "action.hover",
+                                }}
+                              >
+                                <Typography
+                                  variant="overline"
+                                  color="primary"
+                                  sx={{ fontWeight: 700, letterSpacing: 0.8 }}
+                                >
+                                  {section.title}
+                                </Typography>
+                                {section.fields.map((field) => {
+                                  const val = formData[field];
+                                  const isEmpty = val === "" || val === null || typeof val === "undefined";
+                                  return (
+                                    <Box
+                                      key={field}
+                                      sx={{
+                                        display: "flex",
+                                        justifyContent: "space-between",
+                                        alignItems: "baseline",
+                                        py: 0.5,
+                                        borderBottom: "1px solid",
+                                        borderColor: "divider",
+                                        "&:last-child": { borderBottom: "none" },
+                                      }}
+                                    >
+                                      <Typography variant="caption" color="text.secondary">
+                                        {FIELD_LABELS[field] || field}
+                                      </Typography>
+                                      <Typography
+                                        variant="body2"
+                                        sx={{
+                                          fontWeight: 500,
+                                          color: isEmpty ? "warning.main" : "text.primary",
+                                        }}
+                                      >
+                                        {formatFieldValue(field, val)}
+                                      </Typography>
+                                    </Box>
+                                  );
+                                })}
+                              </Paper>
+                            </Grid>
+                          ))}
+                        </Grid>
+                      </Box>
+                    )}
 
-                {error && (
-                  <Alert severity="error" sx={{ mt: 2 }}>
-                    {error}
-                  </Alert>
-                )}
-                {!result && !error && (
-                  <Alert severity="info" sx={{ mt: 2 }}>
-                    Click <strong>Predict CGPA</strong> to run the model.
-                  </Alert>
-                )}
-              </SectionCard>
+                    {result && (
+                      <Alert
+                        severity="success"
+                        sx={{
+                          mt: 2,
+                          "& .MuiAlert-message": { width: "100%" },
+                        }}
+                      >
+                        <strong>Predicted CGPA:</strong>{" "}
+                        {Number(result.predicted_cgpa).toFixed(2)}
+                        <br />
+                        <strong>Performance Band:</strong>{" "}
+                        {result.performance_band}
+                      </Alert>
+                    )}
+
+                    {result && (
+                      <Box sx={{ mt: 2 }}>
+                        <ResultPanel
+                          result={result}
+                          payload={castPayload}
+                          onOpenResearchReference={() => setResearchDialogOpen(true)}
+                        />
+                      </Box>
+                    )}
+
+                    {error && (
+                      <Alert severity="error" sx={{ mt: 2 }}>
+                        {error}
+                      </Alert>
+                    )}
+                  </SectionCard>
+                </div>
+              </Fade>
             )}
 
             {/* Navigation actions below the form for steps 0–3 */}
@@ -798,6 +920,28 @@ function App() {
           </Grid>
         </Grid>
       </Container>
+
+      {/* Footer */}
+      <Box
+        component="footer"
+        sx={{
+          py: 3,
+          px: 2,
+          mt: "auto",
+          textAlign: "center",
+          borderTop: "1px solid",
+          borderColor: "divider",
+          bgcolor: "background.paper",
+        }}
+      >
+        <Typography variant="caption" color="text.secondary">
+          CGPA Prediction Dashboard — Masters Research Project
+        </Typography>
+        <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.25 }}>
+          Predictions are advisory and do not substitute formal academic assessment.
+        </Typography>
+      </Box>
+
       <ResearchReferenceDialog
         open={researchDialogOpen}
         onClose={() => setResearchDialogOpen(false)}

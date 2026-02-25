@@ -277,11 +277,11 @@ const OLevelForm = ({ data, onChange, touched = {} }) => {
           }}
           aria-label="grading mode"
         >
-          <ToggleButton value="numeric" aria-label="old grading">
-            Numeric (Old grading)
-          </ToggleButton>
           <ToggleButton value="letters" aria-label="new grading">
             Alphabetic (New grading)
+          </ToggleButton>
+          <ToggleButton value="numeric" aria-label="old grading">
+            Numeric (Old grading)
           </ToggleButton>
         </ToggleButtonGroup>
         <Box mt={1} display="flex" alignItems="center" gap={1}>
@@ -289,12 +289,27 @@ const OLevelForm = ({ data, onChange, touched = {} }) => {
             <LinearProgress
               variant="determinate"
               value={subjects ? (totalAllocated / subjects) * 100 : 0}
+              color={totalAllocated === subjects && subjects > 0 ? "success" : "primary"}
+              sx={{
+                height: 8,
+                borderRadius: 999,
+                bgcolor: "action.hover",
+                "& .MuiLinearProgress-bar": { borderRadius: 999 },
+              }}
             />
           </Box>
           <Chip
             size="small"
             label={`${totalAllocated}/${subjects} allocated`}
             variant="outlined"
+            color={
+              totalAllocated === subjects && subjects > 0
+                ? "success"
+                : totalAllocated > subjects
+                ? "error"
+                : "default"
+            }
+            sx={{ fontWeight: 600 }}
           />
         </Box>
       </Grid>

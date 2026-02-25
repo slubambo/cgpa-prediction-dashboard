@@ -71,7 +71,7 @@ const DemographicsForm = ({ data, onChange, touched = {} }) => {
     <Paper
       variant="outlined"
       sx={{
-        p: 3,
+        p: { xs: 2, sm: 3 },
         mb: 3,
         borderRadius: 1,
         bgcolor: "background.paper",
@@ -79,23 +79,25 @@ const DemographicsForm = ({ data, onChange, touched = {} }) => {
       }}
     >
       <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mb: 2 }}>
-        We use these details for prediction and reporting. They do not restrict
-        available program options.
+        Basic student details for prediction. These do not restrict program options.
       </Typography>
 
-      <Box
+      <Paper
+        variant="outlined"
         sx={{
-          mb: 2,
+          mb: 2.5,
           p: 1.5,
-          borderRadius: 1,
+          borderRadius: 1.5,
           bgcolor: "action.hover",
+          borderColor: "transparent",
+          borderLeft: (t) => `3px solid ${t.palette.primary.main}`,
         }}
       >
         <Typography variant="caption" color="text.secondary">
           <strong>Age at Entry</strong> means the age when the student starts university
           in the selected <strong>Year of Entry</strong>.
         </Typography>
-      </Box>
+      </Paper>
 
       <Grid container spacing={2}>
         <Grid item xs={12} sm={6}>

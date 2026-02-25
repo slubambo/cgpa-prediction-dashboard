@@ -86,7 +86,20 @@ function InstitutionalForm({ data, onChange, touched = {} }) {
             value: Number(r.campus_id_code),
           }))
           .filter((o) => o.label && o.label !== "" && Number.isFinite(o.value))
-          .sort((a, b) => a.label.localeCompare(b.label));
+          .sort((a, b) => {
+            // Main Campus first, then Kampala, then alphabetical
+            const aL = a.label.toLowerCase();
+            const bL = b.label.toLowerCase();
+            const aIsMain = aL.includes("main");
+            const bIsMain = bL.includes("main");
+            const aIsKla = aL.includes("kampala");
+            const bIsKla = bL.includes("kampala");
+            if (aIsMain && !bIsMain) return -1;
+            if (!aIsMain && bIsMain) return 1;
+            if (aIsKla && !bIsKla) return -1;
+            if (!aIsKla && bIsKla) return 1;
+            return a.label.localeCompare(b.label);
+          });
 
         // programs_by_campus.csv (level_code is 0-based)
         const pRes = await fetch("/lookups/programs_by_campus.csv");
@@ -179,7 +192,6 @@ function InstitutionalForm({ data, onChange, touched = {} }) {
 
     // Dedupe display labels by program name, but keep one underlying program_id_code.
     const byName = new Map();
-    const selectedId = Number(data.program_id_code);
     for (const r of rows) {
       const key = r.program_name.toLowerCase();
       if (!key) continue;
@@ -188,15 +200,13 @@ function InstitutionalForm({ data, onChange, touched = {} }) {
         byName.set(key, {
           value: r.program_id_code,
           label: r.program_name,
-          count: 1,
+          altValues: [r.program_id_code],
         });
-        continue;
-      }
-
-      const existing = byName.get(key);
-      existing.count += 1;
-      if (selectedId === r.program_id_code) {
-        existing.value = r.program_id_code;
+      } else {
+        const existing = byName.get(key);
+        if (!existing.altValues.includes(r.program_id_code)) {
+          existing.altValues.push(r.program_id_code);
+        }
       }
     }
 
@@ -209,22 +219,30 @@ function InstitutionalForm({ data, onChange, touched = {} }) {
     levelChosen,
     data.campus_id_code,
     data.level,
-    data.program_id_code,
   ]);
 
   const selectedProgramOption = useMemo(() => {
     const selected = Number(data.program_id_code);
     if (!Number.isFinite(selected)) return null;
+    // Match by primary value OR any alternate program_id_code for the same name
     return (
-      programOptions.find((option) => Number(option.value) === selected) || null
+      programOptions.find(
+        (option) =>
+          Number(option.value) === selected ||
+          (option.altValues && option.altValues.includes(selected))
+      ) || null
     );
   }, [programOptions, data.program_id_code]);
 
   useEffect(() => {
+    // Don't clear program while CSV data is still loading
+    if (loading) return;
     if (!data.program_id_code) return;
     if (selectedProgramOption) return;
+    // Only clear if we have options loaded and the selection genuinely doesn't match
+    if (programOptions.length === 0 && campusChosen && levelChosen) return;
     onChange("program_id_code", "");
-  }, [data.program_id_code, onChange, selectedProgramOption]);
+  }, [data.program_id_code, onChange, selectedProgramOption, loading, programOptions.length, campusChosen, levelChosen]);
 
   // Small counters for hints
   const levelCountForCampus = levelOptions.length;

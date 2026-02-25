@@ -25,6 +25,7 @@ import {
   TableRow,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import LightbulbOutlinedIcon from "@mui/icons-material/LightbulbOutlined";
 
 import {
   BarChart,
@@ -412,19 +413,28 @@ export default function ResultPanel({
           {guidance.length > 0 && (
             <>
               <Divider sx={{ my: 2 }} />
-              <Typography variant="subtitle1" sx={{ mb: 1 }}>
-                Advisory Insights
-              </Typography>
-              <List dense disablePadding>
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+                <LightbulbOutlinedIcon color="warning" sx={{ fontSize: 20 }} />
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                  Advisory Insights
+                </Typography>
+              </Stack>
+              <Stack spacing={1}>
                 {guidance.map((tip, idx) => (
-                  <ListItem key={idx} sx={{ alignItems: "flex-start", py: 0.5, px: 0 }}>
-                    <ListItemText
-                      primaryTypographyProps={{ variant: "body2" }}
-                      primary={`• ${tip}`}
-                    />
-                  </ListItem>
+                  <Paper
+                    key={idx}
+                    variant="outlined"
+                    sx={{
+                      p: 1.5,
+                      borderRadius: 1.5,
+                      bgcolor: "action.hover",
+                      borderLeft: (t) => `3px solid ${t.palette.warning.main}`,
+                    }}
+                  >
+                    <Typography variant="body2">{tip}</Typography>
+                  </Paper>
                 ))}
-              </List>
+              </Stack>
             </>
           )}
         </Paper>
