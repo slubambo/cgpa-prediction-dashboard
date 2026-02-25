@@ -31,6 +31,7 @@ import ALevelForm from "./components/ALevelForm";
 import InstitutionalForm from "./components/InstitutionalForm";
 import SummarySidebar from "./components/SummarySidebar";
 import ResultPanel from "./components/ResultPanel";
+import ResearchReferenceDialog from "./components/ResearchReferenceDialog";
 
 const steps = ["Demographics", "O-Level", "A-Level", "Institutional", "Review"];
 
@@ -122,6 +123,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [researchDialogOpen, setResearchDialogOpen] = useState(false);
   const [themeMode, setThemeMode] = useState(() => {
     try {
       return localStorage.getItem("cgpa-dashboard-theme-mode") === "dark"
@@ -440,6 +442,9 @@ function App() {
               spacing={1}
               alignItems="center"
             >
+              <Button size="small" onClick={() => setResearchDialogOpen(true)}>
+                Research Notes
+              </Button>
               <Tooltip
                 title={
                   themeMode === "dark"
@@ -614,6 +619,7 @@ function App() {
                         campusName: selectedCampusName,
                         programName: selectedProgramName,
                       }}
+                      onOpenResearchReference={() => setResearchDialogOpen(true)}
                     />
                   </Box>
                 )}
@@ -676,6 +682,14 @@ function App() {
           </Grid>
         </Grid>
       </Container>
+      <ResearchReferenceDialog
+        open={researchDialogOpen}
+        onClose={() => setResearchDialogOpen(false)}
+        researchContext={result?.research_context}
+        globalImportance={
+          Array.isArray(result?.global_importance) ? result.global_importance : []
+        }
+      />
     </ThemeProvider>
   );
 }

@@ -4,6 +4,7 @@ import {
   Grid,
   TextField,
   MenuItem,
+  Autocomplete,
   Typography,
   CircularProgress,
   Chip,
@@ -30,9 +31,6 @@ function InstitutionalForm({ data, onChange, touched = {} }) {
   const [programRows, setProgramRows] = useState([]); // { campus_id_code, level_code(0-based), program_core_id, program_id_code, program_name }
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-
-  // UI-only filter to help users find a program quickly (no API changes)
-  const [programFilter, setProgramFilter] = useState("");
 
   // ---- Small helpers
   const req = (name) => ({
@@ -179,16 +177,10 @@ function InstitutionalForm({ data, onChange, touched = {} }) {
       (r) => r.campus_id_code === campusId && r.level_code === needLevel0
     );
 
-    // simple client-side search filter
-    const needle = programFilter.trim().toLowerCase();
-    const filtered = needle
-      ? rows.filter((r) => r.program_name.toLowerCase().includes(needle))
-      : rows;
-
     // Dedupe display labels by program name, but keep one underlying program_id_code.
     const byName = new Map();
     const selectedId = Number(data.program_id_code);
-    for (const r of filtered) {
+    for (const r of rows) {
       const key = r.program_name.toLowerCase();
       if (!key) continue;
 
@@ -218,8 +210,21 @@ function InstitutionalForm({ data, onChange, touched = {} }) {
     data.campus_id_code,
     data.level,
     data.program_id_code,
-    programFilter,
   ]);
+
+  const selectedProgramOption = useMemo(() => {
+    const selected = Number(data.program_id_code);
+    if (!Number.isFinite(selected)) return null;
+    return (
+      programOptions.find((option) => Number(option.value) === selected) || null
+    );
+  }, [programOptions, data.program_id_code]);
+
+  useEffect(() => {
+    if (!data.program_id_code) return;
+    if (selectedProgramOption) return;
+    onChange("program_id_code", "");
+  }, [data.program_id_code, onChange, selectedProgramOption]);
 
   // Small counters for hints
   const levelCountForCampus = levelOptions.length;
@@ -292,7 +297,6 @@ function InstitutionalForm({ data, onChange, touched = {} }) {
                   // reset level & program when campus changes
                   onChange("level", "");
                   onChange("program_id_code", "");
-                  setProgramFilter("");
                 }}
                 helperText={
                   req("campus_id_code").error
@@ -333,7 +337,6 @@ function InstitutionalForm({ data, onChange, touched = {} }) {
                   onChange("level", modelVal);
                   // reset program when level changes
                   onChange("program_id_code", "");
-                  setProgramFilter("");
                 }}
                 disabled={!campusChosen}
                 helperText={
@@ -363,86 +366,51 @@ function InstitutionalForm({ data, onChange, touched = {} }) {
               </TextField>
             </Grid>
 
-            {/* Program quick filter (client-side) */}
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Search program (optional)"
-                placeholder="Type to filter program names…"
-                value={programFilter}
-                onChange={(e) => setProgramFilter(e.target.value)}
-                disabled={!campusChosen || !levelChosen}
-                helperText={
-                  !campusChosen
-                    ? "Select campus first"
-                    : !levelChosen
-                    ? "Select level first"
-                    : "Optional: narrow down the list below"
-                }
-              />
-            </Grid>
-
             {/* Program */}
             <Grid item xs={12}>
-              <TextField
-                select
-                fullWidth
-                label="Program"
-                placeholder="Select program"
-                required
-                inputProps={{ "aria-label": "Program" }}
-                {...req("program_id_code")}
-                onChange={(e) =>
-                  onChange("program_id_code", Number(e.target.value))
+              <Autocomplete
+                options={programOptions}
+                value={selectedProgramOption}
+                onChange={(_, option) =>
+                  onChange("program_id_code", option ? Number(option.value) : "")
                 }
+                isOptionEqualToValue={(option, value) =>
+                  Number(option.value) === Number(value.value)
+                }
+                getOptionLabel={(option) => option?.label || ""}
                 disabled={!campusChosen || !levelChosen}
-                helperText={
+                noOptionsText={
                   !campusChosen
                     ? "Select campus first"
                     : !levelChosen
                     ? "Select level first"
-                    : req("program_id_code").error
-                    ? req("program_id_code").helperText
-                    : `${programCountForSelection} unique program name${
-                        programCountForSelection === 1 ? "" : "s"
-                      } found`
+                    : "No programs for selected campus and level"
                 }
-              >
-                {programOptions.map((o) => (
-                  <MenuItem
-                    key={o.value}
-                    value={o.value}
-                    style={{ whiteSpace: "normal", lineHeight: 1.2 }}
-                  >
-                    {o.label}
-                  </MenuItem>
-                ))}
-                {programOptions.length === 0 && (
-                  <MenuItem disabled value="">
-                    {!campusChosen
-                      ? "Select campus first"
-                      : !levelChosen
-                      ? "Select level first"
-                      : programFilter
-                      ? "No programs match your search"
-                      : "No programs for selected campus & level"}
-                  </MenuItem>
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Program"
+                    required
+                    placeholder="Search and select program"
+                    error={req("program_id_code").error}
+                    helperText={
+                      !campusChosen
+                        ? "Select campus first"
+                        : !levelChosen
+                        ? "Select level first"
+                        : req("program_id_code").error
+                        ? req("program_id_code").helperText
+                        : `${programCountForSelection} unique program name${
+                            programCountForSelection === 1 ? "" : "s"
+                          } available`
+                    }
+                    inputProps={{
+                      ...params.inputProps,
+                      "aria-label": "Program search and select",
+                    }}
+                  />
                 )}
-              </TextField>
-
-              {/* Live “no matches” status for screen readers */}
-              <Box
-                role="status"
-                aria-live="polite"
-                sx={{ mt: 0.5, fontSize: 12, color: "text.secondary" }}
-              >
-                {campusChosen &&
-                levelChosen &&
-                programFilter &&
-                programOptions.length === 0
-                  ? "No programs match your search."
-                  : ""}
-              </Box>
+              />
             </Grid>
 
             {/* Nationality (1=National, 0=International) */}

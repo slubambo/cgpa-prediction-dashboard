@@ -36,6 +36,7 @@ import {
   Cell,
   ReferenceLine,
 } from "recharts";
+import { DEFAULT_RESEARCH_CONTEXT } from "../constants/researchContext";
 
 const FEATURE_LABELS = {
   age_at_entry: "Age at Entry",
@@ -63,28 +64,6 @@ const FEATURE_LABELS = {
   year_of_entry_code: "Year of Entry",
 };
 
-const DEFAULT_RESEARCH_CONTEXT = {
-  final_model_name: "RandomForestRegressor",
-  feature_count: 23,
-  final_metrics: { mae: 0.3126, rmse: 0.4158, r2: 0.2417 },
-  cross_validation: { r2_mean: 0.2501, r2_std: 0.0598 },
-  model_comparison: [
-    { model: "Linear Regression", mae: 0.3244, rmse: 0.4281, r2: 0.1961 },
-    { model: "Ridge Regression", mae: 0.3243, rmse: 0.428, r2: 0.1962 },
-    { model: "Lasso Regression", mae: 0.3254, rmse: 0.4319, r2: 0.1817 },
-    { model: "Random Forest (untuned)", mae: 0.3157, rmse: 0.4194, r2: 0.2283 },
-    { model: "XGBoost", mae: 0.3286, rmse: 0.4331, r2: 0.177 },
-    { model: "Random Forest (tuned final)", mae: 0.3126, rmse: 0.4158, r2: 0.2417 },
-  ],
-  metric_explanations: {
-    mae: "Mean Absolute Error: average absolute difference between predicted and actual CGPA. Lower is better.",
-    rmse: "Root Mean Squared Error: similar to MAE but penalizes larger mistakes more strongly. Lower is better.",
-    r2: "R-squared: proportion of CGPA variation explained by the model. Higher is better.",
-  },
-  source_note:
-    "Performance metrics are from the finalized research notebook (hold-out test set + 10-fold cross-validation).",
-};
-
 const formatFeature = (feature) =>
   FEATURE_LABELS[feature] ||
   feature
@@ -92,11 +71,13 @@ const formatFeature = (feature) =>
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
 
-const toMetric = (value, digits = 4) =>
-  value == null || Number.isNaN(value) ? "—" : Number(value).toFixed(digits);
-
 const toCgpa = (value) =>
   value == null || Number.isNaN(value) ? "—" : Number(value).toFixed(2);
+const toSigned = (value, digits = 3) =>
+  value == null || Number.isNaN(value)
+    ? "—"
+    : `${Number(value) >= 0 ? "+" : ""}${Number(value).toFixed(digits)}`;
+const clampCgpa = (value) => Math.max(0, Math.min(5, value));
 
 const truncateText = (value, max = 36) => {
   if (typeof value !== "string") return value;
@@ -119,14 +100,14 @@ const chipEllipsisSx = {
  *  - payload: numeric payload submitted for prediction
  *  - lookupLabels: { campusName, programName } from CSV lookup maps
  */
-export default function ResultPanel({ result, payload, lookupLabels = {} }) {
+export default function ResultPanel({
+  result,
+  payload,
+  lookupLabels = {},
+  onOpenResearchReference,
+}) {
   const cgpa = result?.predicted_cgpa ?? null;
   const band = result?.performance_band ?? "—";
-  const globalImp = useMemo(
-    () =>
-      Array.isArray(result?.global_importance) ? result.global_importance : [],
-    [result?.global_importance]
-  );
   const shapValues = useMemo(
     () => (Array.isArray(result?.shap?.values) ? result.shap.values : []),
     [result?.shap?.values]
@@ -143,18 +124,6 @@ export default function ResultPanel({ result, payload, lookupLabels = {} }) {
 
   const research = result?.research_context || DEFAULT_RESEARCH_CONTEXT;
   const finalMetrics = research?.final_metrics || {};
-  const cvStats = research?.cross_validation || {};
-  const comparisonMetrics = Array.isArray(research?.model_comparison)
-    ? research.model_comparison
-    : [];
-  const metricExplanations = research?.metric_explanations || {};
-  const topGlobalFromResearch = useMemo(
-    () =>
-      Array.isArray(research?.top_global_features)
-        ? research.top_global_features
-        : [],
-    [research?.top_global_features]
-  );
 
   const topShap = useMemo(() => {
     const sorted = [...shapValues].sort(
@@ -181,36 +150,13 @@ export default function ResultPanel({ result, payload, lookupLabels = {} }) {
   const programShap = shapValues.find((d) => d.feature === "program_id_code");
   const campusShap = shapValues.find((d) => d.feature === "campus_id_code");
 
-  const topGlobalForChips = useMemo(() => {
-    if (topGlobalFromResearch.length > 0) return topGlobalFromResearch;
-    return [...globalImp]
-      .sort((a, b) => (b.importance || 0) - (a.importance || 0))
-      .slice(0, 5);
-  }, [topGlobalFromResearch, globalImp]);
-
   const topLocalContributors = useMemo(
     () =>
-      topShap.slice(0, 3).map((item) => ({
+      topShap.slice(0, 4).map((item) => ({
         ...item,
         label: formatFeature(item.feature),
       })),
     [topShap]
-  );
-
-  const globalChartData = useMemo(
-    () =>
-      [...globalImp]
-        .sort((a, b) => (b.importance || 0) - (a.importance || 0))
-        .slice(0, 8)
-        .map((item) => {
-          const fullLabel = formatFeature(item.feature);
-          return {
-            ...item,
-            fullLabel,
-            shortLabel: truncateText(fullLabel, 24),
-          };
-        }),
-    [globalImp]
   );
 
   const shapChartData = useMemo(
@@ -242,6 +188,20 @@ export default function ResultPanel({ result, payload, lookupLabels = {} }) {
     ? `${lookupLabels.campusName} (${payload?.campus_id_code ?? "—"})`
     : payload?.campus_id_code ?? "—";
 
+  const confidenceBand = useMemo(() => {
+    if (cgpa == null || Number.isNaN(Number(cgpa))) return null;
+    const mae = Number(finalMetrics?.mae);
+    const rmse = Number(finalMetrics?.rmse);
+    if (!Number.isFinite(mae) || !Number.isFinite(rmse)) return null;
+    const predicted = Number(cgpa);
+    return {
+      maeLow: clampCgpa(predicted - mae),
+      maeHigh: clampCgpa(predicted + mae),
+      rmseLow: clampCgpa(predicted - rmse),
+      rmseHigh: clampCgpa(predicted + rmse),
+    };
+  }, [cgpa, finalMetrics?.mae, finalMetrics?.rmse]);
+
   const downloadJSON = () => {
     const blob = new Blob([JSON.stringify({ payload, result }, null, 2)], {
       type: "application/json",
@@ -262,21 +222,34 @@ export default function ResultPanel({ result, payload, lookupLabels = {} }) {
           <Stack
             direction={{ xs: "column", sm: "row" }}
             justifyContent="space-between"
+            alignItems={{ xs: "stretch", sm: "center" }}
             spacing={1}
             sx={{ mb: 1.5 }}
           >
             <Typography variant="h6">Prediction Overview</Typography>
-            <Button
-              size="small"
-              onClick={downloadJSON}
-              variant="outlined"
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={1}
+              sx={{ alignSelf: { xs: "stretch", sm: "auto" } }}
             >
-              Download Full JSON
-            </Button>
+              {onOpenResearchReference && (
+                <Button size="small" onClick={onOpenResearchReference}>
+                  Research and Viva Notes
+                </Button>
+              )}
+              <Button
+                size="small"
+                onClick={downloadJSON}
+                variant="outlined"
+                sx={{ alignSelf: { xs: "stretch", sm: "auto" } }}
+              >
+                Download Full JSON
+              </Button>
+            </Stack>
           </Stack>
 
           <Grid container spacing={2}>
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} lg={4}>
               <Box sx={{ p: 2, borderRadius: 2, bgcolor: "action.hover", height: "100%" }}>
                 <Typography variant="body2" color="text.secondary">
                   Predicted CGPA
@@ -284,7 +257,14 @@ export default function ResultPanel({ result, payload, lookupLabels = {} }) {
                 <Typography variant="h4" sx={{ fontWeight: 700 }}>
                   {toCgpa(cgpa)}
                 </Typography>
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  alignItems="center"
+                  useFlexGap
+                  flexWrap="wrap"
+                  sx={{ mt: 1 }}
+                >
                   <Chip size="small" color="success" variant="outlined" label={band} />
                   {expected != null && (
                     <Tooltip title="Baseline prediction before student-specific SHAP contributions.">
@@ -306,83 +286,136 @@ export default function ResultPanel({ result, payload, lookupLabels = {} }) {
                     CGPA scale: 0.0 to 5.0
                   </Typography>
                 </Box>
-              </Box>
-            </Grid>
-
-            <Grid item xs={12} md={4}>
-              <Box sx={{ p: 2, borderRadius: 2, bgcolor: "action.hover", height: "100%" }}>
-                <Typography variant="body2" color="text.secondary">
-                  Selected Program and Campus
-                </Typography>
-                <Stack spacing={1} sx={{ mt: 1 }}>
-                  <Tooltip title={`Program: ${selectedProgram}`}>
-                    <Chip
-                      size="small"
-                      variant="outlined"
-                      label={`Program: ${truncateText(String(selectedProgram), 32)}`}
-                      sx={chipEllipsisSx}
-                    />
-                  </Tooltip>
-                  <Tooltip title={`Campus: ${selectedCampus}`}>
-                    <Chip
-                      size="small"
-                      variant="outlined"
-                      label={`Campus: ${truncateText(String(selectedCampus), 32)}`}
-                      sx={chipEllipsisSx}
-                    />
-                  </Tooltip>
-                </Stack>
                 <Typography
                   variant="caption"
                   color="text.secondary"
                   sx={{ display: "block", mt: 1.5 }}
                 >
-                  SHAP local effects for this profile:
+                  Advisory use only, not a final academic decision.
                 </Typography>
-                <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: "wrap" }}>
-                  <Chip
-                    size="small"
-                    color={(programShap?.shap ?? 0) >= 0 ? "success" : "warning"}
-                    label={`Program Δ ${toCgpa(programShap?.shap)}`}
-                  />
-                  <Chip
-                    size="small"
-                    color={(campusShap?.shap ?? 0) >= 0 ? "success" : "warning"}
-                    label={`Campus Δ ${toCgpa(campusShap?.shap)}`}
-                  />
-                </Stack>
+                {confidenceBand && (
+                  <Paper
+                    variant="outlined"
+                    sx={{ p: 1.25, mt: 1.5, borderRadius: 1.5, bgcolor: "background.paper" }}
+                  >
+                    <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                      Prediction confidence band
+                    </Typography>
+                    <Typography variant="body2">
+                      Typical (plus/minus MAE): {toCgpa(confidenceBand.maeLow)} to{" "}
+                      {toCgpa(confidenceBand.maeHigh)}
+                    </Typography>
+                    <Typography variant="body2">
+                      Conservative (plus/minus RMSE): {toCgpa(confidenceBand.rmseLow)} to{" "}
+                      {toCgpa(confidenceBand.rmseHigh)}
+                    </Typography>
+                  </Paper>
+                )}
               </Box>
             </Grid>
 
-            <Grid item xs={12} md={4}>
-              <Box sx={{ p: 2, borderRadius: 2, bgcolor: "action.hover", height: "100%" }}>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                  Key drivers for this student
-                </Typography>
-                {topLocalContributors.length > 0 ? (
-                  <Stack spacing={1}>
-                    {topLocalContributors.map((item, idx) => (
-                      <Chip
-                        key={`${item.feature}-${idx}`}
-                        size="small"
-                        color={item.shap >= 0 ? "success" : "warning"}
-                        label={`${truncateText(item.label, 26)}: ${
-                          item.shap >= 0 ? "+" : ""
-                        }${toMetric(item.shap, 3)}`}
-                        sx={chipEllipsisSx}
-                      />
-                    ))}
+            <Grid item xs={12} lg={8}>
+              <Stack spacing={2} sx={{ height: "100%" }}>
+                <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: "action.hover" }}>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Selected Program and Campus
+                  </Typography>
+                  <Grid container spacing={1.5} sx={{ mt: 0.5 }}>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="caption" color="text.secondary">
+                        Program
+                      </Typography>
+                      <Tooltip title={String(selectedProgram)}>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>
+                          {selectedProgram}
+                        </Typography>
+                      </Tooltip>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="caption" color="text.secondary">
+                        Campus
+                      </Typography>
+                      <Tooltip title={String(selectedCampus)}>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>
+                          {selectedCampus}
+                        </Typography>
+                      </Tooltip>
+                    </Grid>
+                  </Grid>
+
+                  <Divider sx={{ my: 1.5 }} />
+                  <Typography variant="caption" color="text.secondary">
+                    SHAP local effects for this profile
+                  </Typography>
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={1}
+                    useFlexGap
+                    flexWrap="wrap"
+                    sx={{ mt: 1 }}
+                  >
+                    <Chip
+                      size="small"
+                      color={(programShap?.shap ?? 0) >= 0 ? "success" : "warning"}
+                      label={`Program Δ ${toSigned(programShap?.shap, 3)}`}
+                      sx={chipEllipsisSx}
+                    />
+                    <Chip
+                      size="small"
+                      color={(campusShap?.shap ?? 0) >= 0 ? "success" : "warning"}
+                      label={`Campus Δ ${toSigned(campusShap?.shap, 3)}`}
+                      sx={chipEllipsisSx}
+                    />
                   </Stack>
-                ) : (
-                  <Typography variant="body2">Top SHAP drivers are not available.</Typography>
-                )}
-                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1.5 }}>
-                  Positive values push prediction upward. Negative values pull it downward.
-                </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.75 }}>
-                  This is an advisory estimate, not a final academic decision.
-                </Typography>
-              </Box>
+                </Paper>
+
+                <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: "action.hover" }}>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Key drivers for this student
+                  </Typography>
+                  {topLocalContributors.length > 0 ? (
+                    <Stack spacing={1} sx={{ mt: 1 }}>
+                      {topLocalContributors.map((item, idx) => (
+                        <Box
+                          key={`${item.feature}-${idx}`}
+                          sx={{
+                            p: 1,
+                            borderRadius: 1,
+                            bgcolor: "background.paper",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 1,
+                            minWidth: 0,
+                          }}
+                        >
+                          <Tooltip title={item.label}>
+                            <Typography variant="body2" sx={{ minWidth: 0 }} noWrap>
+                              {item.label}
+                            </Typography>
+                          </Tooltip>
+                          <Chip
+                            size="small"
+                            color={item.shap >= 0 ? "success" : "warning"}
+                            label={toSigned(item.shap, 3)}
+                          />
+                        </Box>
+                      ))}
+                    </Stack>
+                  ) : (
+                    <Typography variant="body2" sx={{ mt: 1 }}>
+                      Top SHAP drivers are not available.
+                    </Typography>
+                  )}
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ display: "block", mt: 1.25 }}
+                  >
+                    Positive values push prediction upward. Negative values pull it downward.
+                  </Typography>
+                </Paper>
+              </Stack>
             </Grid>
           </Grid>
 
@@ -394,7 +427,7 @@ export default function ResultPanel({ result, payload, lookupLabels = {} }) {
               </Typography>
               <List dense disablePadding>
                 {guidance.map((tip, idx) => (
-                  <ListItem key={idx} sx={{ alignItems: "flex-start", py: 0.5 }}>
+                  <ListItem key={idx} sx={{ alignItems: "flex-start", py: 0.5, px: 0 }}>
                     <ListItemText
                       primaryTypographyProps={{ variant: "body2" }}
                       primary={`• ${tip}`}
@@ -404,105 +437,6 @@ export default function ResultPanel({ result, payload, lookupLabels = {} }) {
               </List>
             </>
           )}
-        </Paper>
-      </Grid>
-
-      <Grid item xs={12}>
-        <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2 }}>
-          <Typography variant="subtitle1" sx={{ mb: 1 }}>
-            Research Context and Model Performance
-          </Typography>
-
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-            Final model: <strong>{research?.final_model_name || "—"}</strong>, using{" "}
-            <strong>{research?.feature_count || "—"}</strong> engineered/input features.
-          </Typography>
-
-          <Grid container spacing={2} sx={{ mb: 1 }}>
-            <Grid item xs={12} md={4}>
-              <Paper variant="outlined" sx={{ p: 1.5, height: "100%" }}>
-                <Typography variant="overline">MAE</Typography>
-                <Typography variant="h6">{toMetric(finalMetrics.mae, 4)}</Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {metricExplanations.mae}
-                </Typography>
-                <Typography variant="caption" sx={{ display: "block", mt: 1 }}>
-                  Typical absolute gap is about {toCgpa(finalMetrics.mae)} CGPA points.
-                </Typography>
-              </Paper>
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <Paper variant="outlined" sx={{ p: 1.5, height: "100%" }}>
-                <Typography variant="overline">RMSE</Typography>
-                <Typography variant="h6">{toMetric(finalMetrics.rmse, 4)}</Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {metricExplanations.rmse}
-                </Typography>
-                <Typography variant="caption" sx={{ display: "block", mt: 1 }}>
-                  Larger misses are penalized more than MAE.
-                </Typography>
-              </Paper>
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <Paper variant="outlined" sx={{ p: 1.5, height: "100%" }}>
-                <Typography variant="overline">R²</Typography>
-                <Typography variant="h6">{toMetric(finalMetrics.r2, 4)}</Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {metricExplanations.r2}
-                </Typography>
-                <Typography variant="caption" sx={{ display: "block", mt: 1 }}>
-                  10-fold CV mean R²: {toMetric(cvStats.r2_mean, 4)} (std {toMetric(cvStats.r2_std, 4)}).
-                </Typography>
-              </Paper>
-            </Grid>
-          </Grid>
-
-          {topGlobalForChips.length > 0 && (
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                Top global drivers from the trained model:
-              </Typography>
-              <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                {topGlobalForChips.map((item, idx) => (
-                  <Chip
-                    key={`${item.feature}-${idx}`}
-                    size="small"
-                    variant="outlined"
-                    label={`${formatFeature(item.feature)} (${toMetric(item.importance, 3)})`}
-                  />
-                ))}
-              </Stack>
-            </Box>
-          )}
-
-          {comparisonMetrics.length > 0 && (
-            <TableContainer sx={{ overflowX: "auto" }}>
-              <Table size="small" sx={{ minWidth: 560 }}>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Model</TableCell>
-                    <TableCell align="right">MAE</TableCell>
-                    <TableCell align="right">RMSE</TableCell>
-                    <TableCell align="right">R²</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {comparisonMetrics.map((row) => (
-                    <TableRow key={row.model}>
-                      <TableCell>{row.model}</TableCell>
-                      <TableCell align="right">{toMetric(row.mae, 4)}</TableCell>
-                      <TableCell align="right">{toMetric(row.rmse, 4)}</TableCell>
-                      <TableCell align="right">{toMetric(row.r2, 4)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-
-          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
-            {research?.source_note || DEFAULT_RESEARCH_CONTEXT.source_note}
-          </Typography>
         </Paper>
       </Grid>
 
@@ -551,51 +485,6 @@ export default function ResultPanel({ result, payload, lookupLabels = {} }) {
           )}
           <Typography variant="caption" color="text.secondary">
             Positive bars push prediction upward; negative bars pull prediction downward.
-          </Typography>
-        </Paper>
-      </Grid>
-
-      <Grid item xs={12}>
-        <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2 }}>
-          <Typography variant="subtitle1" gutterBottom>
-            Global Feature Importance (model-wide)
-          </Typography>
-          {globalChartData.length > 0 ? (
-            <Box sx={{ height: Math.max(320, globalChartData.length * 34 + 80) }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={[...globalChartData].reverse()}
-                  layout="vertical"
-                  margin={{ top: 8, right: 24, bottom: 8, left: 24 }}
-                >
-                  <XAxis type="number" allowDecimals />
-                  <YAxis
-                    type="category"
-                    dataKey="shortLabel"
-                    width={180}
-                    tick={{ fontSize: 12 }}
-                  />
-                  <RTooltip
-                    labelFormatter={(_, payload) =>
-                      payload?.[0]?.payload?.fullLabel || _
-                    }
-                    formatter={(val) => Number(val).toFixed(3)}
-                  />
-                  <Bar dataKey="importance">
-                    {[...globalChartData].reverse().map((_, idx) => (
-                      <Cell key={idx} fill="#1b6ca8" />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </Box>
-          ) : (
-            <Typography variant="body2" color="text.secondary">
-              Not available.
-            </Typography>
-          )}
-          <Typography variant="caption" color="text.secondary">
-            Higher values mean the feature has stronger average influence across many students.
           </Typography>
         </Paper>
       </Grid>

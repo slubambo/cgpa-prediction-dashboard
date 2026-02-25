@@ -17,6 +17,45 @@ import {
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 
+const DEMOG_RAW_FIELDS = [
+  "marital_status",
+  "gender",
+  "age_at_entry",
+  "year_of_entry_code",
+];
+const OLEVEL_RAW_FIELDS = [
+  "uce_year_code",
+  "olevel_subjects",
+  "uce_distinctions",
+  "uce_credits",
+];
+const OLEVEL_DERIVED_FIELDS = [
+  "average_olevel_grade",
+  "count_weak_grades_olevel",
+  "std_dev_olevel_grade",
+];
+const ALEVEL_RAW_FIELDS = ["uace_year_code", "general_paper"];
+const ALEVEL_DERIVED_FIELDS = [
+  "alevel_average_grade_weight",
+  "alevel_std_dev_grade_weight",
+  "alevel_dominant_grade_weight",
+  "alevel_count_weak_grades",
+  "high_school_performance_variance",
+  "high_school_performance_stability_index",
+];
+const INSTITUTIONAL_RAW_FIELDS = [
+  "level",
+  "campus_id_code",
+  "program_id_code",
+  "is_national",
+];
+const IMPORTANT_FIELDS = [
+  ...DEMOG_RAW_FIELDS,
+  ...OLEVEL_RAW_FIELDS,
+  ...ALEVEL_RAW_FIELDS,
+  ...INSTITUTIONAL_RAW_FIELDS,
+];
+
 /** Friendly value formatting for common coded fields */
 const formatValue = (key, value) => {
   if (value === null || typeof value === "undefined" || value === "")
@@ -115,38 +154,6 @@ const SummarySidebar = ({
   /** notify parent when user manually opens a different section */
   onSectionChange,
 }) => {
-  // --- Field groups (split raw vs derived for clarity) ---
-  const demogRaw = [
-    "marital_status",
-    "gender",
-    "age_at_entry",
-    "year_of_entry_code",
-  ];
-
-  const olevelRaw = [
-    "uce_year_code",
-    "olevel_subjects",
-    "uce_distinctions",
-    "uce_credits",
-  ];
-  const olevelFeat = [
-    "average_olevel_grade",
-    "count_weak_grades_olevel",
-    "std_dev_olevel_grade",
-  ];
-
-  const alevelRaw = ["uace_year_code", "general_paper"];
-  const alevelFeat = [
-    "alevel_average_grade_weight",
-    "alevel_std_dev_grade_weight",
-    "alevel_dominant_grade_weight",
-    "alevel_count_weak_grades",
-    "high_school_performance_variance",
-    "high_school_performance_stability_index",
-  ];
-
-  const instRaw = ["level", "campus_id_code", "program_id_code", "is_national"];
-
   // --- Friendly field labels ---
   const LABEL = {
     // Demographics
@@ -181,14 +188,13 @@ const SummarySidebar = ({
   };
 
   // --- Profile completeness ---
-  const importantFields = [...demogRaw, ...olevelRaw, ...alevelRaw, ...instRaw];
   const { filledCount, totalCount } = useMemo(() => {
     let filled = 0;
-    for (const k of importantFields) {
+    for (const k of IMPORTANT_FIELDS) {
       const v = data?.[k];
       if (!(v === "" || v === null || typeof v === "undefined")) filled += 1;
     }
-    return { filledCount: filled, totalCount: importantFields.length };
+    return { filledCount: filled, totalCount: IMPORTANT_FIELDS.length };
   }, [data]);
   const percent = Math.round((filledCount / totalCount) * 100);
 
@@ -255,7 +261,7 @@ const SummarySidebar = ({
         onToggle={handleToggle("demographics")}
       >
         <List dense disablePadding>
-          {demogRaw.map((k) => (
+          {DEMOG_RAW_FIELDS.map((k) => (
             <Row
               key={k}
               label={LABEL[k] || k}
@@ -275,7 +281,7 @@ const SummarySidebar = ({
         onToggle={handleToggle("olevel")}
       >
         <List dense disablePadding>
-          {olevelRaw.map((k) => (
+          {OLEVEL_RAW_FIELDS.map((k) => (
             <Row
               key={k}
               label={LABEL[k] || k}
@@ -288,7 +294,7 @@ const SummarySidebar = ({
           Derived features
         </Typography>
         <List dense disablePadding>
-          {olevelFeat.map((k) => (
+          {OLEVEL_DERIVED_FIELDS.map((k) => (
             <Row
               key={k}
               label={LABEL[k] || k}
@@ -309,7 +315,7 @@ const SummarySidebar = ({
         onToggle={handleToggle("alevel")}
       >
         <List dense disablePadding>
-          {alevelRaw.map((k) => (
+          {ALEVEL_RAW_FIELDS.map((k) => (
             <Row
               key={k}
               label={LABEL[k] || k}
@@ -322,7 +328,7 @@ const SummarySidebar = ({
           Derived features
         </Typography>
         <List dense disablePadding>
-          {alevelFeat.map((k) => (
+          {ALEVEL_DERIVED_FIELDS.map((k) => (
             <Row
               key={k}
               label={LABEL[k] || k}
@@ -342,7 +348,7 @@ const SummarySidebar = ({
         onToggle={handleToggle("institutional")}
       >
         <List dense disablePadding>
-          {instRaw.map((k) => (
+          {INSTITUTIONAL_RAW_FIELDS.map((k) => (
             <Row
               key={k}
               label={LABEL[k] || k}
