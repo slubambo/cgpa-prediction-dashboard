@@ -1,0 +1,30 @@
+# Git
+.git
+.gitignore
+
+# Node
+cgpa-ui/node_modules
+cgpa-ui/build
+node_modules
+
+# Python
+api/.venv
+api/__pycache__
+api/routes/__pycache__
+api/models/__pycache__
+__pycache__
+*.pyc
+
+# Old model backups
+final_best_cgpa_model_old.pkl
+final_best_cgpa_model_old_1.pkl
+
+# IDE / OS
+.DS_Store
+*.swp
+.vscode
+.idea
+
+# Notebook outputs
+*.ipynb
+Research Notebook.ipynb
