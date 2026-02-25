@@ -82,7 +82,7 @@ export default function ALevelForm({ data, onChange, touched = {} }) {
   }, [onChange]);
 
   // ---- Local UI state (rehydrate from data if present)
-  const initialGrading = (data && data._alevel_grading) || GRADING.LEGACY_25;
+  const initialGrading = (data && data._alevel_grading) || GRADING.CLASSIC_18;
   const [grading, setGrading] = useState(initialGrading);
 
   const [uaceYear, setUaceYear] = useState(

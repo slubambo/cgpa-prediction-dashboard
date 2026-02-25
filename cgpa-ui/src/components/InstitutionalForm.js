@@ -92,8 +92,8 @@ function InstitutionalForm({ data, onChange, touched = {} }) {
             const bL = b.label.toLowerCase();
             const aIsMain = aL.includes("main");
             const bIsMain = bL.includes("main");
-            const aIsKla = aL.includes("kampala");
-            const bIsKla = bL.includes("kampala");
+            const aIsKla = aL.startsWith("kampala");
+            const bIsKla = bL.startsWith("kampala");
             if (aIsMain && !bIsMain) return -1;
             if (!aIsMain && bIsMain) return 1;
             if (aIsKla && !bIsKla) return -1;

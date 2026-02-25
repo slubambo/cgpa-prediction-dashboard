@@ -342,9 +342,8 @@ function App() {
     setResult(null);
     try {
       const API =
-        process.env.REACT_APP_API_BASE ||
-        "https://cgpa-prediction-dashboard.onrender.com";
-      const response = await axios.post(`${API}/api/predict`, payload);
+        process.env.REACT_APP_API_BASE ?? "";
+      const response = await axios.post(`${API}/api/predict`, castPayload);
       setResult(response.data);
       setActiveStep(steps.length - 1);
     } catch (err) {
