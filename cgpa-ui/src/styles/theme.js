@@ -13,6 +13,8 @@ export const createAppTheme = ({ mode = "light" } = {}) => {
         : { default: "#f6f8fc", paper: "#ffffff" },
       primary: { main: "#1b6ca8" },
       secondary: { main: "#2f855a" },
+      success: { main: "#29b77b" },
+      warning: { main: "#e67e22" },
       text: isDark
         ? { primary: "#e6e6e6", secondary: "#a8b0bf" }
         : { primary: "#172235", secondary: "#4f5d75" },
@@ -20,8 +22,9 @@ export const createAppTheme = ({ mode = "light" } = {}) => {
     shape: { borderRadius: 10 },
     typography: {
       fontFamily: `"Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial`,
-      h4: { fontWeight: 750, fontSize: `${2.0 * fontScale}rem` },
+      h4: { fontWeight: 750, fontSize: `${2.0 * fontScale}rem`, letterSpacing: -0.5 },
       h6: { fontWeight: 650, letterSpacing: 0.2, fontSize: `${1.2 * fontScale}rem` },
+      subtitle1: { fontWeight: 600 },
       body1: { fontSize: `${1.0 * fontScale}rem` },
       body2: { fontSize: `${0.9 * fontScale}rem` },
       caption: { fontSize: `${0.8 * fontScale}rem` },
@@ -31,11 +34,52 @@ export const createAppTheme = ({ mode = "light" } = {}) => {
         styleOverrides: {
           root: {
             border: `1px solid ${cardBorder}`,
+            backgroundImage: "none",
+          },
+        },
+      },
+      MuiButton: {
+        styleOverrides: {
+          root: {
+            textTransform: "none",
+            fontWeight: 600,
+            borderRadius: 8,
+          },
+          contained: {
+            boxShadow: "none",
+            "&:hover": {
+              boxShadow: isDark
+                ? "0 2px 8px rgba(27, 108, 168, 0.3)"
+                : "0 2px 8px rgba(27, 108, 168, 0.2)",
+            },
+          },
+        },
+      },
+      MuiChip: {
+        styleOverrides: {
+          root: {
+            fontWeight: 500,
+          },
+        },
+      },
+      MuiStepLabel: {
+        styleOverrides: {
+          label: {
+            fontWeight: 500,
+            "&.Mui-active": { fontWeight: 700 },
+            "&.Mui-completed": { fontWeight: 600 },
           },
         },
       },
       MuiTextField: {
         defaultProps: { size: "small", variant: "outlined" },
+      },
+      MuiAlert: {
+        styleOverrides: {
+          root: {
+            borderRadius: 8,
+          },
+        },
       },
       MuiMenuItem: {
         styleOverrides: {
@@ -74,6 +118,16 @@ export const createAppTheme = ({ mode = "light" } = {}) => {
           },
           input: {
             paddingRight: 8,
+          },
+        },
+      },
+      MuiLinearProgress: {
+        styleOverrides: {
+          root: {
+            borderRadius: 999,
+          },
+          bar: {
+            borderRadius: 999,
           },
         },
       },

@@ -98,12 +98,10 @@ const chipEllipsisSx = {
  * Props:
  *  - result: API response object
  *  - payload: numeric payload submitted for prediction
- *  - lookupLabels: { campusName, programName } from CSV lookup maps
  */
 export default function ResultPanel({
   result,
   payload,
-  lookupLabels = {},
   onOpenResearchReference,
 }) {
   const cgpa = result?.predicted_cgpa ?? null;
@@ -181,12 +179,8 @@ export default function ResultPanel({
     return [-bound, bound];
   }, [shapChartData]);
 
-  const selectedProgram = lookupLabels?.programName
-    ? `${lookupLabels.programName} (${payload?.program_id_code ?? "—"})`
-    : payload?.program_id_code ?? "—";
-  const selectedCampus = lookupLabels?.campusName
-    ? `${lookupLabels.campusName} (${payload?.campus_id_code ?? "—"})`
-    : payload?.campus_id_code ?? "—";
+  const selectedProgram = payload?.program_id_code ?? "—";
+  const selectedCampus = payload?.campus_id_code ?? "—";
 
   const confidenceBand = useMemo(() => {
     if (cgpa == null || Number.isNaN(Number(cgpa))) return null;
@@ -323,23 +317,19 @@ export default function ResultPanel({
                   <Grid container spacing={1.5} sx={{ mt: 0.5 }}>
                     <Grid item xs={12} sm={6}>
                       <Typography variant="caption" color="text.secondary">
-                        Program
+                        Program code
                       </Typography>
-                      <Tooltip title={String(selectedProgram)}>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>
-                          {selectedProgram}
-                        </Typography>
-                      </Tooltip>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        {selectedProgram}
+                      </Typography>
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <Typography variant="caption" color="text.secondary">
-                        Campus
+                        Campus code
                       </Typography>
-                      <Tooltip title={String(selectedCampus)}>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }} noWrap>
-                          {selectedCampus}
-                        </Typography>
-                      </Tooltip>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        {selectedCampus}
+                      </Typography>
                     </Grid>
                   </Grid>
 

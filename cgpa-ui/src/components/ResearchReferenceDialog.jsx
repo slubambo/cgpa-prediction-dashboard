@@ -287,6 +287,38 @@ export default function ResearchReferenceDialog({
             <Grid item xs={12}>
               <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
                 <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                  Limitations and Responsible Use
+                </Typography>
+                <Grid container spacing={1.5}>
+                  <Grid item xs={12} md={6}>
+                    <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5, height: "100%" }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                        Limitations
+                      </Typography>
+                      <Typography variant="body2">1. Prediction is statistical, not deterministic.</Typography>
+                      <Typography variant="body2">2. R2 indicates moderate explanatory power, so unexplained factors remain.</Typography>
+                      <Typography variant="body2">3. Error metrics are averages; individual cases may deviate more.</Typography>
+                      <Typography variant="body2">4. Inputs outside training patterns may reduce reliability.</Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5, height: "100%" }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                        Responsible Use
+                      </Typography>
+                      <Typography variant="body2">1. Use as advisory evidence, not as final admission or progression decision.</Typography>
+                      <Typography variant="body2">2. Combine with counselor judgment and broader student context.</Typography>
+                      <Typography variant="body2">3. Protect sensitive student information in demos and exports.</Typography>
+                      <Typography variant="body2">4. Re-evaluate model metrics periodically before operational use.</Typography>
+                    </Paper>
+                  </Grid>
+                </Grid>
+              </Paper>
+            </Grid>
+
+            <Grid item xs={12}>
+              <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>
                   Viva Delivery Notes
                 </Typography>
                 <Typography variant="body2">1. Start with problem, data, and model choice.</Typography>
@@ -301,4 +333,3 @@ export default function ResearchReferenceDialog({
     </Dialog>
   );
 }
-

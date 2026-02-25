@@ -18,10 +18,20 @@ import {
   Stack,
   IconButton,
   Tooltip,
+  Chip,
   useMediaQuery,
+  Collapse,
+  Fade,
 } from "@mui/material";
 import LightModeOutlinedIcon from "@mui/icons-material/LightModeOutlined";
 import DarkModeOutlinedIcon from "@mui/icons-material/DarkModeOutlined";
+import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
+import NavigateNextIcon from "@mui/icons-material/NavigateNext";
+import NavigateBeforeIcon from "@mui/icons-material/NavigateBefore";
+import SendIcon from "@mui/icons-material/Send";
+import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import { createAppTheme } from "./styles/theme";
 
 import SectionCard from "./components/SectionCard";
@@ -32,6 +42,7 @@ import InstitutionalForm from "./components/InstitutionalForm";
 import SummarySidebar from "./components/SummarySidebar";
 import ResultPanel from "./components/ResultPanel";
 import ResearchReferenceDialog from "./components/ResearchReferenceDialog";
+import { DEMO_STUDENT_PROFILES } from "./constants/demoProfiles";
 
 const steps = ["Demographics", "O-Level", "A-Level", "Institutional", "Review"];
 
@@ -77,16 +88,37 @@ const STEP_REQUIRED_FIELDS = {
   3: ["campus_id_code", "level", "program_id_code", "is_national"],
 };
 
-const parseCsvWithExpectedColumns = (text, expectedCols) => {
-  const rows = text.trim().split(/\r?\n/);
-  if (rows.length < 2) return [];
-  return rows.slice(1).map((line) => {
-    const cols = line.split(",");
-    if (cols.length <= expectedCols) return cols;
-    const fixed = cols.slice(0, expectedCols - 1);
-    fixed.push(cols.slice(expectedCols - 1).join(","));
-    return fixed;
-  });
+const castFormData = (source) => {
+  const n = (v) => (v === "" || v === null ? NaN : Number(v));
+  const f = (v) => (v === "" || v === null ? NaN : parseFloat(v));
+  return {
+    ...source,
+    age_at_entry: n(source.age_at_entry),
+    gender: n(source.gender),
+    marital_status: n(source.marital_status),
+    is_national: n(source.is_national),
+    level: n(source.level),
+    uce_year_code: n(source.uce_year_code),
+    olevel_subjects: n(source.olevel_subjects),
+    uce_distinctions: n(source.uce_distinctions),
+    uce_credits: n(source.uce_credits),
+    average_olevel_grade: f(source.average_olevel_grade),
+    count_weak_grades_olevel: n(source.count_weak_grades_olevel),
+    std_dev_olevel_grade: f(source.std_dev_olevel_grade),
+    uace_year_code: n(source.uace_year_code),
+    general_paper: n(source.general_paper),
+    alevel_average_grade_weight: f(source.alevel_average_grade_weight),
+    alevel_std_dev_grade_weight: f(source.alevel_std_dev_grade_weight),
+    alevel_dominant_grade_weight: f(source.alevel_dominant_grade_weight),
+    alevel_count_weak_grades: n(source.alevel_count_weak_grades),
+    year_of_entry_code: n(source.year_of_entry_code),
+    campus_id_code: n(source.campus_id_code),
+    program_id_code: n(source.program_id_code),
+    high_school_performance_variance: f(source.high_school_performance_variance),
+    high_school_performance_stability_index: f(
+      source.high_school_performance_stability_index
+    ),
+  };
 };
 
 // keep a single source of truth for a blank form
@@ -123,7 +155,9 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [activeDemoProfileId, setActiveDemoProfileId] = useState(null);
   const [researchDialogOpen, setResearchDialogOpen] = useState(false);
+  const [demoExpanded, setDemoExpanded] = useState(false);
   const [themeMode, setThemeMode] = useState(() => {
     try {
       return localStorage.getItem("cgpa-dashboard-theme-mode") === "dark"
@@ -133,9 +167,6 @@ function App() {
       return "light";
     }
   });
-  const [campusById, setCampusById] = useState({});
-  const [programById, setProgramById] = useState({});
-
   const theme = useMemo(() => createAppTheme({ mode: themeMode }), [themeMode]);
   const isPhone = useMediaQuery(theme.breakpoints.down("sm"));
 
@@ -152,96 +183,13 @@ function App() {
     }
   }, [themeMode]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadLookups = async () => {
-      try {
-        const [campusResp, programResp] = await Promise.all([
-          fetch("/lookups/campuses.csv"),
-          fetch("/lookups/programs_by_campus.csv"),
-        ]);
-        if (!campusResp.ok || !programResp.ok) return;
-
-        const [campusTxt, programTxt] = await Promise.all([
-          campusResp.text(),
-          programResp.text(),
-        ]);
-
-        const campusRows = parseCsvWithExpectedColumns(campusTxt, 2);
-        const programRows = parseCsvWithExpectedColumns(programTxt, 5);
-
-        const campusMap = {};
-        campusRows.forEach((r) => {
-          const id = Number(r[0]);
-          const name = (r[1] || "").trim();
-          if (Number.isFinite(id) && name) campusMap[id] = name;
-        });
-
-        const programMap = {};
-        programRows.forEach((r) => {
-          const id = Number(r[3]);
-          const name = (r[4] || "").trim();
-          if (Number.isFinite(id) && name && !programMap[id]) {
-            programMap[id] = name;
-          }
-        });
-
-        if (!cancelled) {
-          setCampusById(campusMap);
-          setProgramById(programMap);
-        }
-      } catch (lookupErr) {
-        // Keep silently resilient; lookups are UX enhancement only.
-      }
-    };
-
-    loadLookups();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const handleFormChange = useCallback((field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     setTouched((t) => ({ ...t, [field]: true }));
     setError(null);
   }, []);
 
-  const castPayload = useMemo(() => {
-    const n = (v) => (v === "" || v === null ? NaN : Number(v));
-    const f = (v) => (v === "" || v === null ? NaN : parseFloat(v));
-    return {
-      ...formData,
-      age_at_entry: n(formData.age_at_entry),
-      gender: n(formData.gender),
-      marital_status: n(formData.marital_status),
-      is_national: n(formData.is_national),
-      level: n(formData.level),
-      uce_year_code: n(formData.uce_year_code),
-      olevel_subjects: n(formData.olevel_subjects),
-      uce_distinctions: n(formData.uce_distinctions),
-      uce_credits: n(formData.uce_credits),
-      average_olevel_grade: f(formData.average_olevel_grade),
-      count_weak_grades_olevel: n(formData.count_weak_grades_olevel),
-      std_dev_olevel_grade: f(formData.std_dev_olevel_grade),
-      uace_year_code: n(formData.uace_year_code),
-      general_paper: n(formData.general_paper),
-      alevel_average_grade_weight: f(formData.alevel_average_grade_weight),
-      alevel_std_dev_grade_weight: f(formData.alevel_std_dev_grade_weight),
-      alevel_dominant_grade_weight: f(formData.alevel_dominant_grade_weight),
-      alevel_count_weak_grades: n(formData.alevel_count_weak_grades),
-      year_of_entry_code: n(formData.year_of_entry_code),
-      campus_id_code: n(formData.campus_id_code),
-      program_id_code: n(formData.program_id_code),
-      high_school_performance_variance: f(
-        formData.high_school_performance_variance
-      ),
-      high_school_performance_stability_index: f(
-        formData.high_school_performance_stability_index
-      ),
-    };
-  }, [formData]);
+  const castPayload = useMemo(() => castFormData(formData), [formData]);
 
   const missingFields = useMemo(
     () =>
@@ -255,16 +203,6 @@ function App() {
     () => missingFields.map((key) => FIELD_LABELS[key] || key),
     [missingFields]
   );
-
-  const selectedCampusName = useMemo(() => {
-    const key = Number(formData.campus_id_code);
-    return Number.isFinite(key) ? campusById[key] || null : null;
-  }, [campusById, formData.campus_id_code]);
-
-  const selectedProgramName = useMemo(() => {
-    const key = Number(formData.program_id_code);
-    return Number.isFinite(key) ? programById[key] || null : null;
-  }, [programById, formData.program_id_code]);
 
   const validateStep = useCallback(
     (step) => {
@@ -368,8 +306,42 @@ function App() {
     setTouched({});
     setResult(null);
     setError(null);
+    setActiveDemoProfileId(null);
     setActiveStep(0);
   };
+
+  const runPrediction = useCallback(async (payload) => {
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    try {
+      const API =
+        process.env.REACT_APP_API_BASE ||
+        "https://cgpa-prediction-dashboard.onrender.com";
+      const response = await axios.post(`${API}/api/predict`, payload);
+      setResult(response.data);
+      setActiveStep(steps.length - 1);
+    } catch (err) {
+      setError(
+        err?.response?.data?.detail || "Something went wrong. Please try again."
+      );
+    } finally {
+      setLoading(false);
+      setActiveDemoProfileId(null);
+    }
+  }, []);
+
+  const handleRunDemoProfile = useCallback(
+    async (profile) => {
+      if (!profile?.data) return;
+      const nextData = { ...getInitialFormData(), ...profile.data };
+      setActiveDemoProfileId(profile.id || null);
+      setFormData(nextData);
+      setTouched({});
+      await runPrediction(castFormData(nextData));
+    },
+    [runPrediction]
+  );
 
   const handleSubmit = async () => {
     const stepValidations = [0, 1, 2, 3].map((step) => ({
@@ -399,50 +371,51 @@ function App() {
       }
       return;
     }
-    setLoading(true);
-    setError(null);
-    setResult(null);
-    try {
-      // const API = process.env.REACT_APP_API_BASE || "http://localhost:8000";
-      const API = process.env.REACT_APP_API_BASE || "https://cgpa-prediction-dashboard.onrender.com";
-      const response = await axios.post(`${API}/api/predict`, castPayload);
-      setResult(response.data);
-      setActiveStep(steps.length - 1);
-    } catch (err) {
-      setError(
-        err?.response?.data?.detail || "Something went wrong. Please try again."
-      );
-    } finally {
-      setLoading(false);
-    }
+    await runPrediction(castPayload);
   };
 
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Container maxWidth="lg" sx={{ mt: 3, mb: 6 }}>
-        <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+        <Paper
+          variant="outlined"
+          sx={{
+            p: { xs: 2, sm: 3 },
+            mb: 2,
+            background: (t) =>
+              t.palette.mode === "dark"
+                ? "linear-gradient(135deg, #1a1d24 0%, #1e2a3a 100%)"
+                : "linear-gradient(135deg, #ffffff 0%, #e8f0fe 100%)",
+          }}
+        >
           <Stack
             direction={{ xs: "column", md: "row" }}
             justifyContent="space-between"
             alignItems={{ xs: "flex-start", md: "center" }}
             spacing={2}
           >
-            <Box>
-              <Typography variant="h4" sx={{ mb: 0.5 }}>
-                CGPA Prediction Dashboard
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Admission-stage prediction and explanation for academic advising.
-              </Typography>
-            </Box>
+            <Stack direction="row" spacing={1.5} alignItems="center">
+              <SchoolOutlinedIcon
+                color="primary"
+                sx={{ fontSize: { xs: 32, sm: 40 } }}
+              />
+              <Box>
+                <Typography variant="h4" sx={{ mb: 0.25 }}>
+                  CGPA Prediction Dashboard
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Admission-stage prediction &amp; explanation for academic advising
+                </Typography>
+              </Box>
+            </Stack>
 
-            <Stack
-              direction="row"
-              spacing={1}
-              alignItems="center"
-            >
-              <Button size="small" onClick={() => setResearchDialogOpen(true)}>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Button
+                size="small"
+                variant="text"
+                onClick={() => setResearchDialogOpen(true)}
+              >
                 Research Notes
               </Button>
               <Tooltip
@@ -454,6 +427,7 @@ function App() {
               >
                 <IconButton
                   aria-label="Toggle light and dark mode"
+                  size="small"
                   onClick={() =>
                     setThemeMode((prev) => (prev === "dark" ? "light" : "dark"))
                   }
@@ -469,23 +443,161 @@ function App() {
           </Stack>
         </Paper>
 
-        <Stepper
-          activeStep={activeStep}
-          alternativeLabel={!isPhone}
-          orientation={isPhone ? "vertical" : "horizontal"}
-          sx={{
-            mb: 3,
-            "& .MuiStepLabel-label": {
-              fontSize: { xs: "0.82rem", sm: "0.95rem" },
-            },
-          }}
-        >
-          {steps.map((label) => (
-            <Step key={label}>
-              <StepLabel>{label}</StepLabel>
-            </Step>
-          ))}
-        </Stepper>
+        {activeStep === 0 && (
+          <Fade in timeout={400}>
+            <Paper
+              variant="outlined"
+              sx={{
+                mb: 2,
+                overflow: "hidden",
+                borderColor: demoExpanded ? "primary.main" : "divider",
+                transition: "border-color 0.3s ease",
+              }}
+            >
+              <Box
+                onClick={() => setDemoExpanded((prev) => !prev)}
+                sx={{
+                  p: 2,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  "&:hover": { bgcolor: "action.hover" },
+                  transition: "background-color 0.2s ease",
+                }}
+              >
+                <Stack direction="row" spacing={1.5} alignItems="center">
+                  <PlayCircleOutlineIcon color="primary" />
+                  <Box>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                      Quick Demo Profiles
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Try a sample profile to see the dashboard in action
+                    </Typography>
+                  </Box>
+                </Stack>
+                <IconButton
+                  size="small"
+                  aria-label={demoExpanded ? "Collapse demo profiles" : "Expand demo profiles"}
+                  sx={{
+                    transform: demoExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                    transition: "transform 0.3s ease",
+                  }}
+                >
+                  <ExpandMoreIcon />
+                </IconButton>
+              </Box>
+              <Collapse in={demoExpanded} timeout={350}>
+                <Box sx={{ px: 2, pb: 2 }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                    Strategic sample profiles for demonstration.
+                    Selecting one runs prediction immediately and opens the Review step.
+                  </Typography>
+                  <Grid container spacing={1.5}>
+                    {DEMO_STUDENT_PROFILES.map((profile) => (
+                      <Grid item xs={12} sm={6} key={profile.id}>
+                        <Paper
+                          variant="outlined"
+                          sx={{
+                            p: 1.5,
+                            borderRadius: 1.5,
+                            height: "100%",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 1,
+                            transition: "box-shadow 0.2s ease, border-color 0.2s ease",
+                            "&:hover": {
+                              borderColor: "primary.light",
+                              boxShadow: (t) =>
+                                t.palette.mode === "dark"
+                                  ? "0 2px 12px rgba(27, 108, 168, 0.15)"
+                                  : "0 2px 12px rgba(27, 108, 168, 0.10)",
+                            },
+                          }}
+                        >
+                          <Typography variant="subtitle2">{profile.title}</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {profile.description}
+                          </Typography>
+                          <Stack direction="row" spacing={0.5} useFlexGap flexWrap="wrap">
+                            <Chip
+                              size="small"
+                              variant="outlined"
+                              label={`Program: ${profile.data.program_id_code}`}
+                              sx={{ fontSize: "0.7rem" }}
+                            />
+                            <Chip
+                              size="small"
+                              variant="outlined"
+                              label={`Level: ${profile.data.level}`}
+                              sx={{ fontSize: "0.7rem" }}
+                            />
+                          </Stack>
+                          <Box sx={{ mt: "auto" }}>
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              fullWidth
+                              disabled={loading}
+                              startIcon={
+                                loading && activeDemoProfileId === profile.id ? (
+                                  <CircularProgress size={14} />
+                                ) : (
+                                  <PlayCircleOutlineIcon sx={{ fontSize: 16 }} />
+                                )
+                              }
+                              onClick={() => handleRunDemoProfile(profile)}
+                            >
+                              {loading && activeDemoProfileId === profile.id
+                                ? "Running..."
+                                : "Run Profile"}
+                            </Button>
+                          </Box>
+                        </Paper>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </Box>
+              </Collapse>
+            </Paper>
+          </Fade>
+        )}
+
+        <Paper variant="outlined" sx={{ p: { xs: 1.5, sm: 2 }, mb: 2 }}>
+          <Stack
+            direction="row"
+            justifyContent="space-between"
+            alignItems="center"
+            sx={{ mb: 1.5 }}
+          >
+            <Typography variant="caption" color="text.secondary">
+              Step {activeStep + 1} of {steps.length} — {steps[activeStep]}
+            </Typography>
+            <Chip
+              size="small"
+              variant="outlined"
+              color={activeStep === 4 ? "success" : "primary"}
+              label={activeStep === 4 ? "Review" : `${Math.round((activeStep / (steps.length - 1)) * 100)}%`}
+            />
+          </Stack>
+          <Stepper
+            activeStep={activeStep}
+            alternativeLabel={!isPhone}
+            orientation={isPhone ? "vertical" : "horizontal"}
+            sx={{
+              "& .MuiStepLabel-label": {
+                fontSize: { xs: "0.82rem", sm: "0.95rem" },
+              },
+            }}
+          >
+            {steps.map((label) => (
+              <Step key={label}>
+                <StepLabel>{label}</StepLabel>
+              </Step>
+            ))}
+          </Stepper>
+        </Paper>
 
         <Grid container spacing={2}>
           <Grid item xs={12} md={8}>
@@ -557,6 +669,7 @@ function App() {
                       <Button
                         variant="outlined"
                         onClick={handleBack}
+                        startIcon={<NavigateBeforeIcon />}
                         sx={{ mr: 1 }}
                       >
                         Back
@@ -565,6 +678,7 @@ function App() {
                         variant="contained"
                         color="primary"
                         onClick={handleReset}
+                        startIcon={<RestartAltIcon />}
                       >
                         Start New Prediction
                       </Button>
@@ -574,6 +688,7 @@ function App() {
                       <Button
                         variant="outlined"
                         onClick={handleBack}
+                        startIcon={<NavigateBeforeIcon />}
                         sx={{ mr: 1 }}
                       >
                         Back
@@ -583,12 +698,15 @@ function App() {
                         color="primary"
                         onClick={handleSubmit}
                         disabled={loading}
+                        startIcon={
+                          loading ? (
+                            <CircularProgress size={18} color="inherit" />
+                          ) : (
+                            <SendIcon />
+                          )
+                        }
                       >
-                        {loading ? (
-                          <CircularProgress size={20} />
-                        ) : (
-                          "Predict CGPA"
-                        )}
+                        {loading ? "Predicting..." : "Predict CGPA"}
                       </Button>
                     </>
                   )
@@ -615,10 +733,6 @@ function App() {
                     <ResultPanel
                       result={result}
                       payload={castPayload}
-                      lookupLabels={{
-                        campusName: selectedCampusName,
-                        programName: selectedProgramName,
-                      }}
                       onOpenResearchReference={() => setResearchDialogOpen(true)}
                     />
                   </Box>
@@ -650,16 +764,18 @@ function App() {
                     <Button
                       disabled={activeStep === 0}
                       onClick={handleBack}
+                      startIcon={<NavigateBeforeIcon />}
                       sx={{ width: { xs: "100%", sm: "auto" } }}
                     >
-                      Back
+                      {activeStep > 0 ? steps[activeStep - 1] : "Back"}
                     </Button>
                     <Button
                       variant="contained"
                       onClick={handleNext}
+                      endIcon={activeStep === 3 ? <SendIcon /> : <NavigateNextIcon />}
                       sx={{ width: { xs: "100%", sm: "auto" } }}
                     >
-                      Next
+                      {activeStep === 3 ? "Review & Submit" : `Next: ${steps[activeStep + 1]}`}
                     </Button>
                   </Stack>
                 </Paper>

@@ -16,6 +16,10 @@ import {
   Stack,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
+import MenuBookOutlinedIcon from "@mui/icons-material/MenuBookOutlined";
+import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
+import AccountBalanceOutlinedIcon from "@mui/icons-material/AccountBalanceOutlined";
 
 const DEMOG_RAW_FIELDS = [
   "marital_status",
@@ -126,20 +130,28 @@ const Row = ({ label, value, muted = false }) => (
 );
 
 /** Controlled section (expanded decided by parent) */
-const Section = ({ title, expanded, onToggle, children, subtitle }) => (
+const Section = ({ title, expanded, onToggle, children, subtitle, icon }) => (
   <Accordion
     expanded={expanded}
     onChange={onToggle}
     disableGutters
-    sx={{ boxShadow: "none" }}
+    sx={{
+      boxShadow: "none",
+      "&::before": { display: "none" },
+      bgcolor: expanded ? "action.hover" : "transparent",
+      borderRadius: "8px !important",
+      transition: "background-color 0.2s ease",
+      mb: 0.5,
+    }}
   >
     <AccordionSummary expandIcon={<ExpandMoreIcon />}>
       <Stack direction="row" spacing={1} alignItems="center">
-        <Typography variant="overline" sx={{ letterSpacing: 0.6 }}>
+        {icon}
+        <Typography variant="overline" sx={{ letterSpacing: 0.6, fontWeight: expanded ? 700 : 500 }}>
           {title}
         </Typography>
         {subtitle ? (
-          <Chip size="small" label={subtitle} variant="outlined" />
+          <Chip size="small" label={subtitle} variant="outlined" sx={{ height: 20, fontSize: "0.7rem" }} />
         ) : null}
       </Stack>
     </AccordionSummary>
@@ -222,16 +234,18 @@ const SummarySidebar = ({
         maxHeight: { md: "calc(100vh - 32px)" },
         overflow: { md: "auto" },
         borderRadius: 2,
-        background:
-          "linear-gradient(180deg, rgba(145,158,171,0.10) 0%, rgba(145,158,171,0.05) 100%)",
+        background: (t) =>
+          t.palette.mode === "dark"
+            ? "linear-gradient(180deg, rgba(30,42,58,0.4) 0%, rgba(26,29,36,0.6) 100%)"
+            : "linear-gradient(180deg, rgba(145,158,171,0.10) 0%, rgba(145,158,171,0.05) 100%)",
       }}
     >
       {/* Header + Progress */}
       <Box sx={{ mb: 2 }}>
-        <Typography variant="subtitle1" sx={{ mb: 0.5, fontWeight: 600 }}>
+        <Typography variant="subtitle1" sx={{ mb: 0.5, fontWeight: 650 }}>
           Quick Review
         </Typography>
-        <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 0.5 }}>
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 0.75 }}>
           <Typography variant="caption" color="text.secondary">
             Profile completeness
           </Typography>
@@ -239,24 +253,34 @@ const SummarySidebar = ({
             size="small"
             label={`${filledCount}/${totalCount}`}
             variant="outlined"
+            color={percent === 100 ? "success" : percent > 50 ? "primary" : "default"}
+            sx={{ height: 20, fontSize: "0.7rem" }}
           />
         </Stack>
         <LinearProgress
           variant="determinate"
           value={percent}
+          color={percent === 100 ? "success" : "primary"}
           sx={{
-            height: 8,
+            height: 6,
             borderRadius: 999,
+            bgcolor: "action.hover",
             "& .MuiLinearProgress-bar": { borderRadius: 999 },
           }}
         />
+        {percent === 100 && (
+          <Typography variant="caption" color="success.main" sx={{ mt: 0.5, display: "block" }}>
+            All fields complete — ready to submit!
+          </Typography>
+        )}
       </Box>
 
-      <Divider sx={{ my: 1.5 }} />
+      <Divider sx={{ my: 1 }} />
 
       {/* Demographics */}
       <Section
         title="Demographics"
+        icon={<PersonOutlineIcon sx={{ fontSize: 18 }} color="primary" />}
         expanded={EXPANDED.demographics}
         onToggle={handleToggle("demographics")}
       >
@@ -277,6 +301,7 @@ const SummarySidebar = ({
       <Section
         title="O‑Level"
         subtitle="Raw inputs"
+        icon={<MenuBookOutlinedIcon sx={{ fontSize: 18 }} color="primary" />}
         expanded={EXPANDED.olevel}
         onToggle={handleToggle("olevel")}
       >
@@ -311,6 +336,7 @@ const SummarySidebar = ({
       <Section
         title="A‑Level"
         subtitle="Raw inputs"
+        icon={<SchoolOutlinedIcon sx={{ fontSize: 18 }} color="primary" />}
         expanded={EXPANDED.alevel}
         onToggle={handleToggle("alevel")}
       >
@@ -344,6 +370,7 @@ const SummarySidebar = ({
       {/* Institutional */}
       <Section
         title="Institutional"
+        icon={<AccountBalanceOutlinedIcon sx={{ fontSize: 18 }} color="primary" />}
         expanded={EXPANDED.institutional}
         onToggle={handleToggle("institutional")}
       >
