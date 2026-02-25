@@ -1,0 +1,21 @@
+# docker-compose.yml — Local development / single-machine deploy
+# Usage: docker compose up --build
+
+services:
+  cgpa-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        REACT_APP_API_BASE: ""   # same-origin (change for external API)
+    ports:
+      - "${PORT:-3000}:${PORT:-3000}"
+    environment:
+      - PORT=${PORT:-3000}
+      - API_WORKERS=${API_WORKERS:-2}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

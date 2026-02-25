@@ -75,6 +75,31 @@ class ShapPayload(BaseModel):
     expected_value: Optional[float]
     values: List[ShapItem]
 
+class ModelMetricItem(BaseModel):
+    model: str
+    mae: float
+    rmse: float
+    r2: float
+
+class FinalMetrics(BaseModel):
+    mae: float
+    rmse: float
+    r2: float
+
+class CrossValidationStats(BaseModel):
+    r2_mean: float
+    r2_std: float
+
+class ResearchContext(BaseModel):
+    final_model_name: str
+    feature_count: int
+    final_metrics: FinalMetrics
+    cross_validation: CrossValidationStats
+    model_comparison: List[ModelMetricItem] = []
+    metric_explanations: dict[str, str] = {}
+    top_global_features: List[ImportanceItem] = []
+    source_note: str
+
 class PredictionResponse(BaseModel):
     predicted_cgpa: float
     performance_band: str
@@ -82,6 +107,7 @@ class PredictionResponse(BaseModel):
     comparisons: List[ComparisonItem] = []
     shap: ShapPayload = ShapPayload(expected_value=None, values=[])
     guidance: List[str] = []
+    research_context: Optional[ResearchContext] = None
 
 
 @router.post("/api/predict", response_model=PredictionResponse)

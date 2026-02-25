@@ -6,6 +6,6 @@ numpy
 pandas
 joblib
 python-multipart
-CORS
+shap
 pytest
 httpx

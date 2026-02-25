@@ -16,6 +16,49 @@ import {
   Stack,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
+import MenuBookOutlinedIcon from "@mui/icons-material/MenuBookOutlined";
+import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
+import AccountBalanceOutlinedIcon from "@mui/icons-material/AccountBalanceOutlined";
+
+const DEMOG_RAW_FIELDS = [
+  "marital_status",
+  "gender",
+  "age_at_entry",
+  "year_of_entry_code",
+];
+const OLEVEL_RAW_FIELDS = [
+  "uce_year_code",
+  "olevel_subjects",
+  "uce_distinctions",
+  "uce_credits",
+];
+const OLEVEL_DERIVED_FIELDS = [
+  "average_olevel_grade",
+  "count_weak_grades_olevel",
+  "std_dev_olevel_grade",
+];
+const ALEVEL_RAW_FIELDS = ["uace_year_code", "general_paper"];
+const ALEVEL_DERIVED_FIELDS = [
+  "alevel_average_grade_weight",
+  "alevel_std_dev_grade_weight",
+  "alevel_dominant_grade_weight",
+  "alevel_count_weak_grades",
+  "high_school_performance_variance",
+  "high_school_performance_stability_index",
+];
+const INSTITUTIONAL_RAW_FIELDS = [
+  "level",
+  "campus_id_code",
+  "program_id_code",
+  "is_national",
+];
+const IMPORTANT_FIELDS = [
+  ...DEMOG_RAW_FIELDS,
+  ...OLEVEL_RAW_FIELDS,
+  ...ALEVEL_RAW_FIELDS,
+  ...INSTITUTIONAL_RAW_FIELDS,
+];
 
 /** Friendly value formatting for common coded fields */
 const formatValue = (key, value) => {
@@ -87,20 +130,28 @@ const Row = ({ label, value, muted = false }) => (
 );
 
 /** Controlled section (expanded decided by parent) */
-const Section = ({ title, expanded, onToggle, children, subtitle }) => (
+const Section = ({ title, expanded, onToggle, children, subtitle, icon }) => (
   <Accordion
     expanded={expanded}
     onChange={onToggle}
     disableGutters
-    sx={{ boxShadow: "none" }}
+    sx={{
+      boxShadow: "none",
+      "&::before": { display: "none" },
+      bgcolor: expanded ? "action.hover" : "transparent",
+      borderRadius: "8px !important",
+      transition: "background-color 0.2s ease",
+      mb: 0.5,
+    }}
   >
     <AccordionSummary expandIcon={<ExpandMoreIcon />}>
       <Stack direction="row" spacing={1} alignItems="center">
-        <Typography variant="overline" sx={{ letterSpacing: 0.6 }}>
+        {icon}
+        <Typography variant="overline" sx={{ letterSpacing: 0.6, fontWeight: expanded ? 700 : 500 }}>
           {title}
         </Typography>
         {subtitle ? (
-          <Chip size="small" label={subtitle} variant="outlined" />
+          <Chip size="small" label={subtitle} variant="outlined" sx={{ height: 20, fontSize: "0.7rem" }} />
         ) : null}
       </Stack>
     </AccordionSummary>
@@ -115,38 +166,6 @@ const SummarySidebar = ({
   /** notify parent when user manually opens a different section */
   onSectionChange,
 }) => {
-  // --- Field groups (split raw vs derived for clarity) ---
-  const demogRaw = [
-    "marital_status",
-    "gender",
-    "age_at_entry",
-    "year_of_entry_code",
-  ];
-
-  const olevelRaw = [
-    "uce_year_code",
-    "olevel_subjects",
-    "uce_distinctions",
-    "uce_credits",
-  ];
-  const olevelFeat = [
-    "average_olevel_grade",
-    "count_weak_grades_olevel",
-    "std_dev_olevel_grade",
-  ];
-
-  const alevelRaw = ["uace_year_code", "general_paper"];
-  const alevelFeat = [
-    "alevel_average_grade_weight",
-    "alevel_std_dev_grade_weight",
-    "alevel_dominant_grade_weight",
-    "alevel_count_weak_grades",
-    "high_school_performance_variance",
-    "high_school_performance_stability_index",
-  ];
-
-  const instRaw = ["level", "campus_id_code", "program_id_code", "is_national"];
-
   // --- Friendly field labels ---
   const LABEL = {
     // Demographics
@@ -181,14 +200,13 @@ const SummarySidebar = ({
   };
 
   // --- Profile completeness ---
-  const importantFields = [...demogRaw, ...olevelRaw, ...alevelRaw, ...instRaw];
   const { filledCount, totalCount } = useMemo(() => {
     let filled = 0;
-    for (const k of importantFields) {
+    for (const k of IMPORTANT_FIELDS) {
       const v = data?.[k];
       if (!(v === "" || v === null || typeof v === "undefined")) filled += 1;
     }
-    return { filledCount: filled, totalCount: importantFields.length };
+    return { filledCount: filled, totalCount: IMPORTANT_FIELDS.length };
   }, [data]);
   const percent = Math.round((filledCount / totalCount) * 100);
 
@@ -211,21 +229,23 @@ const SummarySidebar = ({
     <Paper
       sx={{
         p: 2,
-        position: "sticky",
-        top: 16,
-        maxHeight: "calc(100vh - 32px)",
-        overflow: "auto",
+        position: { xs: "static", md: "sticky" },
+        top: { md: 16 },
+        maxHeight: { md: "calc(100vh - 32px)" },
+        overflow: { md: "auto" },
         borderRadius: 2,
-        background:
-          "linear-gradient(180deg, rgba(145,158,171,0.10) 0%, rgba(145,158,171,0.05) 100%)",
+        background: (t) =>
+          t.palette.mode === "dark"
+            ? "linear-gradient(180deg, rgba(30,42,58,0.4) 0%, rgba(26,29,36,0.6) 100%)"
+            : "linear-gradient(180deg, rgba(145,158,171,0.10) 0%, rgba(145,158,171,0.05) 100%)",
       }}
     >
       {/* Header + Progress */}
       <Box sx={{ mb: 2 }}>
-        <Typography variant="subtitle1" sx={{ mb: 0.5, fontWeight: 600 }}>
+        <Typography variant="subtitle1" sx={{ mb: 0.5, fontWeight: 650 }}>
           Quick Review
         </Typography>
-        <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 0.5 }}>
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 0.75 }}>
           <Typography variant="caption" color="text.secondary">
             Profile completeness
           </Typography>
@@ -233,29 +253,39 @@ const SummarySidebar = ({
             size="small"
             label={`${filledCount}/${totalCount}`}
             variant="outlined"
+            color={percent === 100 ? "success" : percent > 50 ? "primary" : "default"}
+            sx={{ height: 20, fontSize: "0.7rem" }}
           />
         </Stack>
         <LinearProgress
           variant="determinate"
           value={percent}
+          color={percent === 100 ? "success" : "primary"}
           sx={{
-            height: 8,
+            height: 6,
             borderRadius: 999,
+            bgcolor: "action.hover",
             "& .MuiLinearProgress-bar": { borderRadius: 999 },
           }}
         />
+        {percent === 100 && (
+          <Typography variant="caption" color="success.main" sx={{ mt: 0.5, display: "block" }}>
+            All fields complete — ready to submit!
+          </Typography>
+        )}
       </Box>
 
-      <Divider sx={{ my: 1.5 }} />
+      <Divider sx={{ my: 1 }} />
 
       {/* Demographics */}
       <Section
         title="Demographics"
+        icon={<PersonOutlineIcon sx={{ fontSize: 18 }} color="primary" />}
         expanded={EXPANDED.demographics}
         onToggle={handleToggle("demographics")}
       >
         <List dense disablePadding>
-          {demogRaw.map((k) => (
+          {DEMOG_RAW_FIELDS.map((k) => (
             <Row
               key={k}
               label={LABEL[k] || k}
@@ -271,11 +301,12 @@ const SummarySidebar = ({
       <Section
         title="O‑Level"
         subtitle="Raw inputs"
+        icon={<MenuBookOutlinedIcon sx={{ fontSize: 18 }} color="primary" />}
         expanded={EXPANDED.olevel}
         onToggle={handleToggle("olevel")}
       >
         <List dense disablePadding>
-          {olevelRaw.map((k) => (
+          {OLEVEL_RAW_FIELDS.map((k) => (
             <Row
               key={k}
               label={LABEL[k] || k}
@@ -288,7 +319,7 @@ const SummarySidebar = ({
           Derived features
         </Typography>
         <List dense disablePadding>
-          {olevelFeat.map((k) => (
+          {OLEVEL_DERIVED_FIELDS.map((k) => (
             <Row
               key={k}
               label={LABEL[k] || k}
@@ -305,11 +336,12 @@ const SummarySidebar = ({
       <Section
         title="A‑Level"
         subtitle="Raw inputs"
+        icon={<SchoolOutlinedIcon sx={{ fontSize: 18 }} color="primary" />}
         expanded={EXPANDED.alevel}
         onToggle={handleToggle("alevel")}
       >
         <List dense disablePadding>
-          {alevelRaw.map((k) => (
+          {ALEVEL_RAW_FIELDS.map((k) => (
             <Row
               key={k}
               label={LABEL[k] || k}
@@ -322,7 +354,7 @@ const SummarySidebar = ({
           Derived features
         </Typography>
         <List dense disablePadding>
-          {alevelFeat.map((k) => (
+          {ALEVEL_DERIVED_FIELDS.map((k) => (
             <Row
               key={k}
               label={LABEL[k] || k}
@@ -338,11 +370,12 @@ const SummarySidebar = ({
       {/* Institutional */}
       <Section
         title="Institutional"
+        icon={<AccountBalanceOutlinedIcon sx={{ fontSize: 18 }} color="primary" />}
         expanded={EXPANDED.institutional}
         onToggle={handleToggle("institutional")}
       >
         <List dense disablePadding>
-          {instRaw.map((k) => (
+          {INSTITUTIONAL_RAW_FIELDS.map((k) => (
             <Row
               key={k}
               label={LABEL[k] || k}

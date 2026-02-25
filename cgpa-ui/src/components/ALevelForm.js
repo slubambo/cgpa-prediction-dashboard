@@ -35,15 +35,27 @@ const POINTS = {
 // Distinction/weak rules for features
 const isWeak = (letter) => letter === "D" || letter === "E" || letter === "F";
 
-// UACE year options (current year back 20)
+// UACE year options
 const CURRENT_YEAR = new Date().getFullYear();
-const UACE_YEARS = Array.from({ length: 20 }, (_, i) => CURRENT_YEAR - i);
+const UACE_MIN_YEAR = 1980;
+const ALL_UACE_YEARS = Array.from(
+  { length: CURRENT_YEAR - UACE_MIN_YEAR + 1 },
+  (_, i) => CURRENT_YEAR - i
+);
 
 // Subject limits per framework (principals only)
 const SUBJECT_LIMITS = {
   [GRADING.LEGACY_25]: { min: 4, max: 4 },
   [GRADING.CLASSIC_18]: { min: 3, max: 3 },
   [GRADING.COMPETENCY_60]: { min: 2, max: 3 },
+};
+
+const toFinite = (value) => {
+  if (value === "" || value === null || typeof value === "undefined") {
+    return NaN;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : NaN;
 };
 
 // Helper: only emit to parent when values truly changed
@@ -76,7 +88,7 @@ export default function ALevelForm({ data, onChange, touched = {} }) {
   const [uaceYear, setUaceYear] = useState(
     typeof data.uace_year_code === "number"
       ? data.uace_year_code
-      : UACE_YEARS[0]
+      : ""
   );
 
   const [gpPass, setGpPass] = useState(
@@ -212,20 +224,36 @@ export default function ALevelForm({ data, onChange, touched = {} }) {
         : " ",
   });
 
-  // ---- YEAR VALIDATION (no layout change)
-  // Rules:
-  // 1) Entry year must be the highest → UACE year should be ≤ entryYear - 1.
-  // 2) (O‑Level < UACE - 2) is handled in OLevelForm; we just validate the A‑Level vs Entry here.
-  const entryYear = Number(data.year_of_entry_code);
+  // UACE years are constrained so invalid options are not shown.
+  const entryYear = toFinite(data.year_of_entry_code);
+  const uceYear = toFinite(data.uce_year_code);
   const entryHas = !Number.isNaN(entryYear);
-  const uaceHas = !Number.isNaN(Number(uaceYear));
+  const uceHas = !Number.isNaN(uceYear);
 
-  const uaceTooLate = entryHas && uaceHas ? uaceYear > entryYear - 1 : false;
+  const minUaceYear = uceHas ? uceYear + 2 : UACE_MIN_YEAR;
+  const maxUaceYear = entryHas ? entryYear - 1 : CURRENT_YEAR;
+  const constrainedUaceYears = ALL_UACE_YEARS.filter(
+    (year) => year >= minUaceYear && year <= maxUaceYear
+  );
 
   const uaceReq = req("uace_year_code", uaceYear);
-  const uaceHelper = uaceTooLate
-    ? "UACE year should be at least 1 year before university entry year."
-    : uaceReq.helperText;
+  const uaceHelper = uaceReq.error
+    ? uaceReq.helperText
+    : constrainedUaceYears.length === 0
+    ? "No valid UACE year for the selected Entry and UCE years."
+    : entryHas && uceHas
+    ? "Years shown satisfy both Entry and UCE year ordering."
+    : entryHas
+    ? "Only years at least 1 year before university entry are shown."
+    : "Select Year of Entry first to narrow valid UACE years.";
+
+  useEffect(() => {
+    const selected = Number(uaceYear);
+    const hasSelected = Number.isFinite(selected);
+    if (!hasSelected) return;
+    if (constrainedUaceYears.includes(selected)) return;
+    setUaceYear("");
+  }, [uaceYear, constrainedUaceYears]);
 
   // ---- UI helpers
   // const { min: minSubs, max: maxSubs } = SUBJECT_LIMITS[grading];
@@ -254,7 +282,7 @@ export default function ALevelForm({ data, onChange, touched = {} }) {
           borderColor: "divider",
         }}
       >
-        <Typography variant="h7" gutterBottom>
+        <Typography variant="subtitle1" gutterBottom>
           Subjects & Grading
         </Typography>
         <Typography variant="body2" color="text.secondary">
@@ -303,10 +331,10 @@ export default function ALevelForm({ data, onChange, touched = {} }) {
           size="small"
           sx={{ flexWrap: "wrap", gap: 1 }}
         >
-          <ToggleButton value={GRADING.LEGACY_25}>Legacy (25 pts)</ToggleButton>
           <ToggleButton value={GRADING.CLASSIC_18}>
             Classic (18 pts)
           </ToggleButton>
+          <ToggleButton value={GRADING.LEGACY_25}>Legacy (25 pts)</ToggleButton>
           <ToggleButton value={GRADING.COMPETENCY_60}>
             Competency (≈60 pts)
           </ToggleButton>
@@ -413,10 +441,15 @@ export default function ALevelForm({ data, onChange, touched = {} }) {
               label="UACE Year"
               value={uaceYear}
               onChange={(e) => setUaceYear(Number(e.target.value))}
-              error={uaceReq.error || uaceTooLate}
+              error={uaceReq.error}
               helperText={uaceHelper}
             >
-              {UACE_YEARS.map((y) => (
+              <MenuItem value="" disabled>
+                {constrainedUaceYears.length === 0
+                  ? "No valid UACE years yet"
+                  : "Select year"}
+              </MenuItem>
+              {constrainedUaceYears.map((y) => (
                 <MenuItem key={y} value={y}>
                   {y}
                 </MenuItem>

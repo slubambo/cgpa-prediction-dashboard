@@ -4,18 +4,13 @@ import {
   Grid,
   TextField,
   MenuItem,
+  Autocomplete,
   Typography,
   CircularProgress,
-  IconButton,
-  InputAdornment,
-  Tooltip,
   Chip,
   Box,
   Paper,
 } from "@mui/material";
-import ClearIcon from "@mui/icons-material/Clear";
-import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
-import SearchIcon from "@mui/icons-material/Search";
 
 // UI labels are 1-based for readability.
 // We store 0-based in data.level (for the model), so convert UI->model by subtracting 1,
@@ -36,9 +31,6 @@ function InstitutionalForm({ data, onChange, touched = {} }) {
   const [programRows, setProgramRows] = useState([]); // { campus_id_code, level_code(0-based), program_core_id, program_id_code, program_name }
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-
-  // UI-only filter to help users find a program quickly (no API changes)
-  const [programFilter, setProgramFilter] = useState("");
 
   // ---- Small helpers
   const req = (name) => ({
@@ -94,7 +86,20 @@ function InstitutionalForm({ data, onChange, touched = {} }) {
             value: Number(r.campus_id_code),
           }))
           .filter((o) => o.label && o.label !== "" && Number.isFinite(o.value))
-          .sort((a, b) => a.label.localeCompare(b.label));
+          .sort((a, b) => {
+            // Main Campus first, then Kampala, then alphabetical
+            const aL = a.label.toLowerCase();
+            const bL = b.label.toLowerCase();
+            const aIsMain = aL.includes("main");
+            const bIsMain = bL.includes("main");
+            const aIsKla = aL.includes("kampala");
+            const bIsKla = bL.includes("kampala");
+            if (aIsMain && !bIsMain) return -1;
+            if (!aIsMain && bIsMain) return 1;
+            if (aIsKla && !bIsKla) return -1;
+            if (!aIsKla && bIsKla) return 1;
+            return a.label.localeCompare(b.label);
+          });
 
         // programs_by_campus.csv (level_code is 0-based)
         const pRes = await fetch("/lookups/programs_by_campus.csv");
@@ -185,30 +190,59 @@ function InstitutionalForm({ data, onChange, touched = {} }) {
       (r) => r.campus_id_code === campusId && r.level_code === needLevel0
     );
 
-    // simple client-side search filter
-    const needle = programFilter.trim().toLowerCase();
-    const filtered = needle
-      ? rows.filter((r) => r.program_name.toLowerCase().includes(needle))
-      : rows;
+    // Dedupe display labels by program name, but keep one underlying program_id_code.
+    const byName = new Map();
+    for (const r of rows) {
+      const key = r.program_name.toLowerCase();
+      if (!key) continue;
 
-    // dedupe by program_core_id (already handled in CSV, but keep it just in case)
-    const seenCore = new Set();
-    const opts = [];
-    for (const r of filtered) {
-      if (!seenCore.has(r.program_core_id) && r.program_name) {
-        seenCore.add(r.program_core_id);
-        opts.push({ value: r.program_id_code, label: r.program_name });
+      if (!byName.has(key)) {
+        byName.set(key, {
+          value: r.program_id_code,
+          label: r.program_name,
+          altValues: [r.program_id_code],
+        });
+      } else {
+        const existing = byName.get(key);
+        if (!existing.altValues.includes(r.program_id_code)) {
+          existing.altValues.push(r.program_id_code);
+        }
       }
     }
-    return opts.sort((a, b) => a.label.localeCompare(b.label));
+
+    return Array.from(byName.values()).sort((a, b) =>
+      a.label.localeCompare(b.label)
+    );
   }, [
     programRows,
     campusChosen,
     levelChosen,
     data.campus_id_code,
     data.level,
-    programFilter,
   ]);
+
+  const selectedProgramOption = useMemo(() => {
+    const selected = Number(data.program_id_code);
+    if (!Number.isFinite(selected)) return null;
+    // Match by primary value OR any alternate program_id_code for the same name
+    return (
+      programOptions.find(
+        (option) =>
+          Number(option.value) === selected ||
+          (option.altValues && option.altValues.includes(selected))
+      ) || null
+    );
+  }, [programOptions, data.program_id_code]);
+
+  useEffect(() => {
+    // Don't clear program while CSV data is still loading
+    if (loading) return;
+    if (!data.program_id_code) return;
+    if (selectedProgramOption) return;
+    // Only clear if we have options loaded and the selection genuinely doesn't match
+    if (programOptions.length === 0 && campusChosen && levelChosen) return;
+    onChange("program_id_code", "");
+  }, [data.program_id_code, onChange, selectedProgramOption, loading, programOptions.length, campusChosen, levelChosen]);
 
   // Small counters for hints
   const levelCountForCampus = levelOptions.length;
@@ -217,20 +251,20 @@ function InstitutionalForm({ data, onChange, touched = {} }) {
   // ---- Rendering
   if (loading) {
     return (
-      <div style={{ marginTop: "2rem" }}>
+      <Box sx={{ mt: 1 }}>
         <Typography variant="h6" gutterBottom>
-          🏫 Institutional Placement
+          Institutional Placement
         </Typography>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <CircularProgress size={20} />
-          <span>Loading campus & program lists…</span>
-        </div>
-      </div>
+          <Typography variant="body2">Loading campus and program lists…</Typography>
+        </Box>
+      </Box>
     );
   }
 
   return (
-    <div style={{ marginTop: "2rem" }}>
+    <Box sx={{ mt: 1 }}>
       <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
         <legend style={{ position: "absolute", height: 0, overflow: "hidden" }}>
           Institutional Placement
@@ -281,42 +315,12 @@ function InstitutionalForm({ data, onChange, touched = {} }) {
                   // reset level & program when campus changes
                   onChange("level", "");
                   onChange("program_id_code", "");
-                  setProgramFilter("");
                 }}
                 helperText={
                   req("campus_id_code").error
                     ? req("campus_id_code").helperText
                     : `Available levels: ${levelCountForCampus || 0}`
                 }
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      {campusChosen && (
-                        <Tooltip title="Clear campus">
-                          <IconButton
-                            aria-label="Clear campus"
-                            size="small"
-                            onClick={() => {
-                              onChange("campus_id_code", "");
-                              onChange("level", "");
-                              onChange("program_id_code", "");
-                              setProgramFilter("");
-                            }}
-                          >
-                            <ClearIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                      <Tooltip title="Campus determines which levels and programs you can choose.">
-                        <InfoOutlinedIcon
-                          fontSize="small"
-                          color="action"
-                          sx={{ ml: 0.5 }}
-                        />
-                      </Tooltip>
-                    </InputAdornment>
-                  ),
-                }}
               >
                 {campusOptions.map((o) => (
                   <MenuItem
@@ -351,7 +355,6 @@ function InstitutionalForm({ data, onChange, touched = {} }) {
                   onChange("level", modelVal);
                   // reset program when level changes
                   onChange("program_id_code", "");
-                  setProgramFilter("");
                 }}
                 disabled={!campusChosen}
                 helperText={
@@ -361,34 +364,6 @@ function InstitutionalForm({ data, onChange, touched = {} }) {
                     ? req("level").helperText
                     : `Programs available: ${programCountForSelection || 0}`
                 }
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      {levelChosen && (
-                        <Tooltip title="Clear level">
-                          <IconButton
-                            aria-label="Clear level"
-                            size="small"
-                            onClick={() => {
-                              onChange("level", "");
-                              onChange("program_id_code", "");
-                              setProgramFilter("");
-                            }}
-                          >
-                            <ClearIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                      <Tooltip title="Level must match the program’s academic level.">
-                        <InfoOutlinedIcon
-                          fontSize="small"
-                          color="action"
-                          sx={{ ml: 0.5 }}
-                        />
-                      </Tooltip>
-                    </InputAdornment>
-                  ),
-                }}
               >
                 {levelOptions.map((o) => (
                   <MenuItem
@@ -409,104 +384,51 @@ function InstitutionalForm({ data, onChange, touched = {} }) {
               </TextField>
             </Grid>
 
-            {/* Program quick filter (client-side) */}
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Search program (optional)"
-                placeholder="Type to filter program names…"
-                value={programFilter}
-                onChange={(e) => setProgramFilter(e.target.value)}
-                disabled={!campusChosen || !levelChosen}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon fontSize="small" />
-                    </InputAdornment>
-                  ),
-                  endAdornment: programFilter ? (
-                    <InputAdornment position="end">
-                      <IconButton
-                        aria-label="Clear program search"
-                        size="small"
-                        onClick={() => setProgramFilter("")}
-                      >
-                        <ClearIcon fontSize="small" />
-                      </IconButton>
-                    </InputAdornment>
-                  ) : null,
-                }}
-                helperText={
-                  !campusChosen
-                    ? "Select campus first"
-                    : !levelChosen
-                    ? "Select level first"
-                    : "Optional: narrow down the list below"
-                }
-              />
-            </Grid>
-
             {/* Program */}
             <Grid item xs={12}>
-              <TextField
-                select
-                fullWidth
-                label="Program"
-                placeholder="Select program"
-                required
-                inputProps={{ "aria-label": "Program" }}
-                {...req("program_id_code")}
-                onChange={(e) =>
-                  onChange("program_id_code", Number(e.target.value))
+              <Autocomplete
+                options={programOptions}
+                value={selectedProgramOption}
+                onChange={(_, option) =>
+                  onChange("program_id_code", option ? Number(option.value) : "")
                 }
+                isOptionEqualToValue={(option, value) =>
+                  Number(option.value) === Number(value.value)
+                }
+                getOptionLabel={(option) => option?.label || ""}
                 disabled={!campusChosen || !levelChosen}
-                helperText={
+                noOptionsText={
                   !campusChosen
                     ? "Select campus first"
                     : !levelChosen
                     ? "Select level first"
-                    : req("program_id_code").error
-                    ? req("program_id_code").helperText
-                    : `${programCountForSelection} program${
-                        programCountForSelection === 1 ? "" : "s"
-                      } found`
+                    : "No programs for selected campus and level"
                 }
-              >
-                {programOptions.map((o) => (
-                  <MenuItem
-                    key={o.value}
-                    value={o.value}
-                    style={{ whiteSpace: "normal", lineHeight: 1.2 }}
-                  >
-                    {o.label}
-                  </MenuItem>
-                ))}
-                {programOptions.length === 0 && (
-                  <MenuItem disabled value="">
-                    {!campusChosen
-                      ? "Select campus first"
-                      : !levelChosen
-                      ? "Select level first"
-                      : programFilter
-                      ? "No programs match your search"
-                      : "No programs for selected campus & level"}
-                  </MenuItem>
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Program"
+                    required
+                    placeholder="Search and select program"
+                    error={req("program_id_code").error}
+                    helperText={
+                      !campusChosen
+                        ? "Select campus first"
+                        : !levelChosen
+                        ? "Select level first"
+                        : req("program_id_code").error
+                        ? req("program_id_code").helperText
+                        : `${programCountForSelection} unique program name${
+                            programCountForSelection === 1 ? "" : "s"
+                          } available`
+                    }
+                    inputProps={{
+                      ...params.inputProps,
+                      "aria-label": "Program search and select",
+                    }}
+                  />
                 )}
-              </TextField>
-
-              {/* Live “no matches” status for screen readers */}
-              <Box
-                role="status"
-                aria-live="polite"
-                sx={{ mt: 0.5, fontSize: 12, color: "text.secondary" }}
-              >
-                {campusChosen &&
-                levelChosen &&
-                programFilter &&
-                programOptions.length === 0
-                  ? "No programs match your search."
-                  : ""}
-              </Box>
+              />
             </Grid>
 
             {/* Nationality (1=National, 0=International) */}
@@ -514,21 +436,18 @@ function InstitutionalForm({ data, onChange, touched = {} }) {
               <TextField
                 select
                 fullWidth
+                required
                 label="Nationality"
                 placeholder="Select nationality"
-                value={data.is_national ?? ""}
+                {...req("is_national")}
                 onChange={(e) =>
                   onChange("is_national", Number(e.target.value))
                 }
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <Tooltip title="Used for reporting only; does not change available programs.">
-                        <InfoOutlinedIcon fontSize="small" color="action" />
-                      </Tooltip>
-                    </InputAdornment>
-                  ),
-                }}
+                helperText={
+                  req("is_national").error
+                    ? req("is_national").helperText
+                    : "Used for reporting only; does not change available programs."
+                }
               >
                 <MenuItem value={1}>National</MenuItem>
                 <MenuItem value={0}>International</MenuItem>
@@ -578,7 +497,7 @@ function InstitutionalForm({ data, onChange, touched = {} }) {
           </Grid>
         </Paper>
       </fieldset>
-    </div>
+    </Box>
   );
 }
 
