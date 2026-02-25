@@ -6,16 +6,10 @@ import {
   MenuItem,
   Typography,
   CircularProgress,
-  IconButton,
-  InputAdornment,
-  Tooltip,
   Chip,
   Box,
   Paper,
 } from "@mui/material";
-import ClearIcon from "@mui/icons-material/Clear";
-import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
-import SearchIcon from "@mui/icons-material/Search";
 
 // UI labels are 1-based for readability.
 // We store 0-based in data.level (for the model), so convert UI->model by subtracting 1,
@@ -191,22 +185,39 @@ function InstitutionalForm({ data, onChange, touched = {} }) {
       ? rows.filter((r) => r.program_name.toLowerCase().includes(needle))
       : rows;
 
-    // dedupe by program_core_id (already handled in CSV, but keep it just in case)
-    const seenCore = new Set();
-    const opts = [];
+    // Dedupe display labels by program name, but keep one underlying program_id_code.
+    const byName = new Map();
+    const selectedId = Number(data.program_id_code);
     for (const r of filtered) {
-      if (!seenCore.has(r.program_core_id) && r.program_name) {
-        seenCore.add(r.program_core_id);
-        opts.push({ value: r.program_id_code, label: r.program_name });
+      const key = r.program_name.toLowerCase();
+      if (!key) continue;
+
+      if (!byName.has(key)) {
+        byName.set(key, {
+          value: r.program_id_code,
+          label: r.program_name,
+          count: 1,
+        });
+        continue;
+      }
+
+      const existing = byName.get(key);
+      existing.count += 1;
+      if (selectedId === r.program_id_code) {
+        existing.value = r.program_id_code;
       }
     }
-    return opts.sort((a, b) => a.label.localeCompare(b.label));
+
+    return Array.from(byName.values()).sort((a, b) =>
+      a.label.localeCompare(b.label)
+    );
   }, [
     programRows,
     campusChosen,
     levelChosen,
     data.campus_id_code,
     data.level,
+    data.program_id_code,
     programFilter,
   ]);
 
@@ -217,20 +228,20 @@ function InstitutionalForm({ data, onChange, touched = {} }) {
   // ---- Rendering
   if (loading) {
     return (
-      <div style={{ marginTop: "2rem" }}>
+      <Box sx={{ mt: 1 }}>
         <Typography variant="h6" gutterBottom>
-          🏫 Institutional Placement
+          Institutional Placement
         </Typography>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <CircularProgress size={20} />
-          <span>Loading campus & program lists…</span>
-        </div>
-      </div>
+          <Typography variant="body2">Loading campus and program lists…</Typography>
+        </Box>
+      </Box>
     );
   }
 
   return (
-    <div style={{ marginTop: "2rem" }}>
+    <Box sx={{ mt: 1 }}>
       <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
         <legend style={{ position: "absolute", height: 0, overflow: "hidden" }}>
           Institutional Placement
@@ -288,35 +299,6 @@ function InstitutionalForm({ data, onChange, touched = {} }) {
                     ? req("campus_id_code").helperText
                     : `Available levels: ${levelCountForCampus || 0}`
                 }
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      {campusChosen && (
-                        <Tooltip title="Clear campus">
-                          <IconButton
-                            aria-label="Clear campus"
-                            size="small"
-                            onClick={() => {
-                              onChange("campus_id_code", "");
-                              onChange("level", "");
-                              onChange("program_id_code", "");
-                              setProgramFilter("");
-                            }}
-                          >
-                            <ClearIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                      <Tooltip title="Campus determines which levels and programs you can choose.">
-                        <InfoOutlinedIcon
-                          fontSize="small"
-                          color="action"
-                          sx={{ ml: 0.5 }}
-                        />
-                      </Tooltip>
-                    </InputAdornment>
-                  ),
-                }}
               >
                 {campusOptions.map((o) => (
                   <MenuItem
@@ -361,34 +343,6 @@ function InstitutionalForm({ data, onChange, touched = {} }) {
                     ? req("level").helperText
                     : `Programs available: ${programCountForSelection || 0}`
                 }
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      {levelChosen && (
-                        <Tooltip title="Clear level">
-                          <IconButton
-                            aria-label="Clear level"
-                            size="small"
-                            onClick={() => {
-                              onChange("level", "");
-                              onChange("program_id_code", "");
-                              setProgramFilter("");
-                            }}
-                          >
-                            <ClearIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                      <Tooltip title="Level must match the program’s academic level.">
-                        <InfoOutlinedIcon
-                          fontSize="small"
-                          color="action"
-                          sx={{ ml: 0.5 }}
-                        />
-                      </Tooltip>
-                    </InputAdornment>
-                  ),
-                }}
               >
                 {levelOptions.map((o) => (
                   <MenuItem
@@ -418,24 +372,6 @@ function InstitutionalForm({ data, onChange, touched = {} }) {
                 value={programFilter}
                 onChange={(e) => setProgramFilter(e.target.value)}
                 disabled={!campusChosen || !levelChosen}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon fontSize="small" />
-                    </InputAdornment>
-                  ),
-                  endAdornment: programFilter ? (
-                    <InputAdornment position="end">
-                      <IconButton
-                        aria-label="Clear program search"
-                        size="small"
-                        onClick={() => setProgramFilter("")}
-                      >
-                        <ClearIcon fontSize="small" />
-                      </IconButton>
-                    </InputAdornment>
-                  ) : null,
-                }}
                 helperText={
                   !campusChosen
                     ? "Select campus first"
@@ -467,7 +403,7 @@ function InstitutionalForm({ data, onChange, touched = {} }) {
                     ? "Select level first"
                     : req("program_id_code").error
                     ? req("program_id_code").helperText
-                    : `${programCountForSelection} program${
+                    : `${programCountForSelection} unique program name${
                         programCountForSelection === 1 ? "" : "s"
                       } found`
                 }
@@ -514,21 +450,18 @@ function InstitutionalForm({ data, onChange, touched = {} }) {
               <TextField
                 select
                 fullWidth
+                required
                 label="Nationality"
                 placeholder="Select nationality"
-                value={data.is_national ?? ""}
+                {...req("is_national")}
                 onChange={(e) =>
                   onChange("is_national", Number(e.target.value))
                 }
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <Tooltip title="Used for reporting only; does not change available programs.">
-                        <InfoOutlinedIcon fontSize="small" color="action" />
-                      </Tooltip>
-                    </InputAdornment>
-                  ),
-                }}
+                helperText={
+                  req("is_national").error
+                    ? req("is_national").helperText
+                    : "Used for reporting only; does not change available programs."
+                }
               >
                 <MenuItem value={1}>National</MenuItem>
                 <MenuItem value={0}>International</MenuItem>
@@ -578,7 +511,7 @@ function InstitutionalForm({ data, onChange, touched = {} }) {
           </Grid>
         </Paper>
       </fieldset>
-    </div>
+    </Box>
   );
 }
 

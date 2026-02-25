@@ -51,6 +51,23 @@ def _safe_percentile(x, arr):
 
 
 class CGPAPredictor:
+    # Notebook-backed evaluation summary (used for dashboard research context)
+    NOTEBOOK_MODEL_COMPARISON = [
+        {"model": "Linear Regression", "mae": 0.3244, "rmse": 0.4281, "r2": 0.1961},
+        {"model": "Ridge Regression", "mae": 0.3243, "rmse": 0.4280, "r2": 0.1962},
+        {"model": "Lasso Regression", "mae": 0.3254, "rmse": 0.4319, "r2": 0.1817},
+        {"model": "Random Forest (untuned)", "mae": 0.3157, "rmse": 0.4194, "r2": 0.2283},
+        {"model": "XGBoost", "mae": 0.3286, "rmse": 0.4331, "r2": 0.1770},
+        {"model": "Random Forest (tuned final)", "mae": 0.3126, "rmse": 0.4158, "r2": 0.2417},
+    ]
+    NOTEBOOK_FINAL_METRICS = {"mae": 0.3126, "rmse": 0.4158, "r2": 0.2417}
+    NOTEBOOK_CV_STATS = {"r2_mean": 0.2501, "r2_std": 0.0598}
+    METRIC_EXPLANATIONS = {
+        "mae": "Mean Absolute Error: average absolute difference between predicted and actual CGPA. Lower is better.",
+        "rmse": "Root Mean Squared Error: similar to MAE but penalizes larger mistakes more strongly. Lower is better.",
+        "r2": "R-squared: proportion of CGPA variation explained by the model. Higher is better.",
+    }
+
     """
     Loads the trained model and (optionally) metadata for cohort statistics.
     Provides:
@@ -139,6 +156,36 @@ class CGPAPredictor:
         # Init (lazy) SHAP explainer
         self._explainer = None
         self._shap_expected = None
+
+    def _build_research_context(self):
+        top_global = []
+        if self.global_importance:
+            sorted_imp = sorted(
+                self.global_importance,
+                key=lambda d: d.get("importance", 0),
+                reverse=True
+            )
+            top_global = [
+                {
+                    "feature": d.get("feature"),
+                    "importance": float(d.get("importance", 0.0)),
+                }
+                for d in sorted_imp[:5]
+            ]
+
+        return {
+            "final_model_name": type(self.model).__name__,
+            "feature_count": len(self.feature_names),
+            "final_metrics": self.NOTEBOOK_FINAL_METRICS,
+            "cross_validation": self.NOTEBOOK_CV_STATS,
+            "model_comparison": self.NOTEBOOK_MODEL_COMPARISON,
+            "metric_explanations": self.METRIC_EXPLANATIONS,
+            "top_global_features": top_global,
+            "source_note": (
+                "Performance metrics are from the finalized research notebook "
+                "(hold-out test set + 10-fold cross-validation)."
+            ),
+        }
 
     def _ensure_shap(self, X: pd.DataFrame):
         """
@@ -300,4 +347,5 @@ class CGPAPredictor:
             "comparisons": comparisons,
             "shap": shap_payload,
             "guidance": guidance,
+            "research_context": self._build_research_context(),
         }

@@ -211,10 +211,10 @@ const SummarySidebar = ({
     <Paper
       sx={{
         p: 2,
-        position: "sticky",
-        top: 16,
-        maxHeight: "calc(100vh - 32px)",
-        overflow: "auto",
+        position: { xs: "static", md: "sticky" },
+        top: { md: 16 },
+        maxHeight: { md: "calc(100vh - 32px)" },
+        overflow: { md: "auto" },
         borderRadius: 2,
         background:
           "linear-gradient(180deg, rgba(145,158,171,0.10) 0%, rgba(145,158,171,0.05) 100%)",

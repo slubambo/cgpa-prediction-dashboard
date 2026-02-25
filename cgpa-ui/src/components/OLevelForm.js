@@ -5,22 +5,49 @@ import {
   MenuItem,
   ToggleButtonGroup,
   ToggleButton,
-  Tooltip,
-  InputAdornment,
   LinearProgress,
   Box,
   Chip,
   Divider,
   Paper,
 } from "@mui/material";
-import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 
 const thisYear = new Date().getFullYear();
-const uceYears = Array.from({ length: 26 }, (_, i) => thisYear - i);
+const UCE_MIN_YEAR = 1980;
+const uceYears = Array.from(
+  { length: thisYear - UCE_MIN_YEAR + 1 },
+  (_, i) => thisYear - i
+);
 
 const MIN_SUBJ = 6;
 const MAX_SUBJ = 10;
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+const DEFAULT_NUMERIC_COUNTS = Object.freeze({
+  D1: 0,
+  D2: 0,
+  C3: 0,
+  C4: 0,
+  C5: 0,
+  C6: 0,
+  P7: 0,
+  P8: 0,
+  F9: 0,
+});
+const DEFAULT_LETTER_COUNTS = Object.freeze({
+  A: 0,
+  B: 0,
+  C: 0,
+  D: 0,
+  E: 0,
+  F: 0,
+});
+const toFinite = (value) => {
+  if (value === "" || value === null || typeof value === "undefined") {
+    return NaN;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : NaN;
+};
 
 const expand = (pairs) => {
   const out = [];
@@ -43,25 +70,14 @@ const LETTER_TO_NUM = { A: 2, B: 4, C: 6, D: 7.5, E: 8.5, F: 9 };
 const OLevelForm = ({ data, onChange, touched = {} }) => {
   // ---- read persisted UI state from parent ----
   const mode = data.olevel_mode || "numeric";
-  const numericCounts = data.olevel_numericCounts || {
-    D1: 0,
-    D2: 0,
-    C3: 0,
-    C4: 0,
-    C5: 0,
-    C6: 0,
-    P7: 0,
-    P8: 0,
-    F9: 0,
-  };
-  const letterCounts = data.olevel_letterCounts || {
-    A: 0,
-    B: 0,
-    C: 0,
-    D: 0,
-    E: 0,
-    F: 0,
-  };
+  const numericCounts = useMemo(
+    () => data.olevel_numericCounts || DEFAULT_NUMERIC_COUNTS,
+    [data.olevel_numericCounts]
+  );
+  const letterCounts = useMemo(
+    () => data.olevel_letterCounts || DEFAULT_LETTER_COUNTS,
+    [data.olevel_letterCounts]
+  );
 
   const req = (name) => ({
     value: data[name] ?? "",
@@ -158,18 +174,38 @@ const OLevelForm = ({ data, onChange, touched = {} }) => {
     pattern: "[0-9]*",
   };
 
-  // Entry-year validation (UCE >= 3 years before entry)
-  const uceYear = Number(data.uce_year_code);
-  const entryYear = Number(data.year_of_entry_code);
+  // UCE year options are constrained so invalid years cannot be selected.
+  const uceYear = toFinite(data.uce_year_code);
+  const entryYear = toFinite(data.year_of_entry_code);
+  const uaceYear = toFinite(data.uace_year_code);
   const uceYearHas = !Number.isNaN(uceYear);
   const entryYearHas = !Number.isNaN(entryYear);
-  const uceYearTooLate =
-    uceYearHas && entryYearHas ? uceYear > entryYear - 3 : false;
+  const uaceYearHas = !Number.isNaN(uaceYear);
+
+  const maxUceYear = Math.min(
+    entryYearHas ? entryYear - 3 : thisYear,
+    uaceYearHas ? uaceYear - 2 : thisYear,
+    thisYear
+  );
+  const constrainedUceYears = uceYears.filter((yr) => yr <= maxUceYear);
 
   const uceReq = req("uce_year_code");
-  const uceHelper = uceYearTooLate
-    ? "UCE year should be at least 3 years before Entry Year."
-    : uceReq.helperText;
+  const uceHelper = uceReq.error
+    ? uceReq.helperText
+    : constrainedUceYears.length === 0
+    ? "No valid UCE year available for current year selections."
+    : entryYearHas && uaceYearHas
+    ? "Years shown satisfy both Entry and UACE year ordering."
+    : entryYearHas
+    ? "Only years at least 3 years before university entry are shown."
+    : "Select Year of Entry first to narrow valid UCE years.";
+
+  useEffect(() => {
+    if (!uceYearHas) return;
+    if (constrainedUceYears.includes(uceYear)) return;
+    onChange("uce_year_code", "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uceYear, uceYearHas, constrainedUceYears]);
 
   return (
     <>
@@ -194,10 +230,15 @@ const OLevelForm = ({ data, onChange, touched = {} }) => {
               onChange={(e) =>
                 onChange("uce_year_code", Number(e.target.value))
               }
-              error={uceReq.error || uceYearTooLate}
+              error={uceReq.error}
               helperText={uceHelper}
             >
-              {uceYears.map((yr) => (
+              <MenuItem value="" disabled>
+                {constrainedUceYears.length === 0
+                  ? "No valid UCE years yet"
+                  : "Select year"}
+              </MenuItem>
+              {constrainedUceYears.map((yr) => (
                 <MenuItem key={yr} value={yr}>
                   {yr}
                 </MenuItem>
@@ -255,9 +296,6 @@ const OLevelForm = ({ data, onChange, touched = {} }) => {
             label={`${totalAllocated}/${subjects} allocated`}
             variant="outlined"
           />
-          <Tooltip title="You cannot allocate more grades than the total subjects.">
-            <InfoOutlinedIcon fontSize="small" color="action" />
-          </Tooltip>
         </Box>
       </Grid>
 
@@ -309,9 +347,6 @@ const OLevelForm = ({ data, onChange, touched = {} }) => {
                     }}
                     helperText={`Max: ${clamp(maxForField, 0, subjects)}`}
                     disabled={subjects === 0 || maxForField === 0}
-                    InputProps={{
-                      endAdornment: <InputAdornment position="end" />,
-                    }}
                   />
                 </Grid>
               );
